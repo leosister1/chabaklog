@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
@@ -44,7 +45,7 @@ import java.util.Locale
 enum class Tab(val label: String) { HOME("홈"), MAP("지도"), LOG("기록"), MORNING("아침 요약"), SOURCES("데이터 출처") }
 
 @Composable
-fun ChabaklogRoot(viewModel: MainViewModel) {
+fun ChabaklogRoot(viewModel: MainViewModel, testViewModel: ConnectionTestViewModel) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     MaterialTheme(colorScheme = darkColorScheme()) {
         Surface(Modifier.fillMaxSize()) {
@@ -65,7 +66,7 @@ fun ChabaklogRoot(viewModel: MainViewModel) {
                         Tab.MAP -> MapScreen(viewModel)
                         Tab.LOG -> LogScreen(viewModel)
                         Tab.MORNING -> MorningScreen(viewModel)
-                        Tab.SOURCES -> SourcesScreen()
+                        Tab.SOURCES -> SourcesScreen(testViewModel)
                     }
                 }
             }
@@ -131,7 +132,40 @@ private fun MorningScreen(viewModel: MainViewModel) {
 }
 
 @Composable
-private fun SourcesScreen() {
+private fun SourcesScreen(test: ConnectionTestViewModel) {
+    val locations by test.locations.collectAsStateWithLifecycle()
+    val log by test.log.collectAsStateWithLifecycle()
+    LazyColumn {
+        item { SourcesSummary() }
+        item {
+            Column {
+                Spacer(Modifier.padding(8.dp))
+                Text("연결 시험 (1단계)", style = MaterialTheme.typography.titleLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { test.checkLocations() }) { Text("위치 경로 확인") }
+                    Button(onClick = { test.pickManually() }) { Text("직접 선택 시험") }
+                }
+            }
+        }
+        items(locations) { InfoCard(it.path, it.result) }
+        item {
+          Column {
+            Text("NaviHelper 목적지·경유지", style = MaterialTheme.typography.titleLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { test.setDestination() }) { Text("목적지 설정") }
+                Button(onClick = { test.addWaypoint() }) { Text("경유지 추가") }
+                Button(onClick = { test.readWaypoints() }) { Text("경유지 조회") }
+                Button(onClick = { test.removeWaypoints() }) { Text("경유지 삭제") }
+                Button(onClick = { test.cancelRoute() }) { Text("경로 취소") }
+            }
+          }
+        }
+        items(log) { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    }
+}
+
+@Composable
+private fun SourcesSummary() = Column {
     Title("데이터 출처")
     // 2단계에서 DataSourceRegistry.report()로 교체
     listOf(
