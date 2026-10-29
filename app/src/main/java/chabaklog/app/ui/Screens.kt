@@ -1,5 +1,7 @@
 package chabaklog.app.ui
 
+import chabaklog.app.BuildConfig
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -328,29 +330,32 @@ private fun SourcesScreen(viewModel: MainViewModel, live: LiveState, test: Conne
                 msg?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             }
         }
-        item {
-            Column {
-                Spacer(Modifier.padding(8.dp))
-                Text("연결 시험 (1단계)", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { test.checkLocations() }) { Text("위치 경로 확인") }
-                    Button(onClick = { test.pickManually() }) { Text("직접 선택 시험") }
+        // 개발용 연결 시험(1단계)은 debug 빌드에서만 보인다. release(제출본)에서는 숨김.
+        if (BuildConfig.DEBUG) {
+            item {
+                Column {
+                    Spacer(Modifier.padding(8.dp))
+                    Text("연결 시험 (1단계)", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { test.checkLocations() }) { Text("위치 경로 확인") }
+                        Button(onClick = { test.pickManually() }) { Text("직접 선택 시험") }
+                    }
                 }
             }
-        }
-        items(locations) { InfoCard(it.path, it.result) }
-        item {
-            Column {
-                Text("NaviHelper 목적지·경유지", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { test.setDestination() }) { Text("목적지") }
-                    Button(onClick = { test.addWaypoint() }) { Text("경유지 추가") }
-                    Button(onClick = { test.readWaypoints() }) { Text("조회") }
-                    Button(onClick = { test.removeWaypoints() }) { Text("경유지 삭제") }
-                    Button(onClick = { test.cancelRoute() }) { Text("경로 취소") }
+            items(locations) { InfoCard(it.path, it.result) }
+            item {
+                Column {
+                    Text("NaviHelper 목적지·경유지", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { test.setDestination() }) { Text("목적지") }
+                        Button(onClick = { test.addWaypoint() }) { Text("경유지 추가") }
+                        Button(onClick = { test.readWaypoints() }) { Text("조회") }
+                        Button(onClick = { test.removeWaypoints() }) { Text("경유지 삭제") }
+                        Button(onClick = { test.cancelRoute() }) { Text("경로 취소") }
+                    }
                 }
             }
+            items(log) { Text(it, style = MaterialTheme.typography.bodyMedium) }
         }
-        items(log) { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
 }

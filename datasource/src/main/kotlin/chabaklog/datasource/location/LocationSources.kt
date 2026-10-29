@@ -10,6 +10,22 @@ import chabaklog.datasource.core.Sourced
 data class GeoPoint(val latitude: Double, val longitude: Double, val accuracyMeters: Float? = null)
 
 /**
+ * 앱이 다루는 지역(대한민국, 제주·울릉·독도 포함)의 대략적인 경계.
+ * 차량·내비가 준 위치가 이 밖이면 잘못된 값으로 보고 다음 경로로 넘어간다.
+ * 4단계 실측: 에뮬레이터를 재시작한 직후 내비가 준비되기 전에는 AAOS 기본 GPS(미국 마운틴뷰)가 잡혀
+ * 차박지가 지도 밖에 생겼다.
+ */
+object ServiceArea {
+    const val MIN_LAT = 33.0
+    const val MAX_LAT = 38.9
+    const val MIN_LON = 124.5
+    const val MAX_LON = 132.0
+    fun contains(p: GeoPoint) = p.latitude in MIN_LAT..MAX_LAT && p.longitude in MIN_LON..MAX_LON
+}
+
+private fun GeoPoint.inServiceArea() = takeIf { ServiceArea.contains(it) }
+
+/**
  * 1순위: NaviHelper가 알려주는 차량 현재 위치 (getCurrentLocationInfo).
  * 1단계 실측: 에뮬레이터의 AAOS 위치는 기본 GPS(미국)라 내비가 쓰는 차량 위치와 따로 논다.
  * 내비 위치가 시스템 전체가 쓰는 차량 위치이므로 1순위로 둔다.
@@ -27,7 +43,7 @@ class NaviCurrentLocationSource(
     override val priority = 1
     override suspend fun availability() = provider.availability()
     override suspend fun read() =
-        provider.currentLocation()?.let { Sourced(it, id, Fidelity.MEASURED, clock()) }
+        provider.currentLocation()?.inServiceArea()?.let { Sourced(it, id, Fidelity.MEASURED, clock()) }
 }
 
 /**
@@ -47,7 +63,7 @@ class AaosLocationSource(
     override val priority = 2
     override suspend fun availability() = provider.availability()
     override suspend fun read() =
-        provider.lastKnown()?.let { Sourced(it, id, Fidelity.MEASURED, clock()) }
+        provider.lastKnown()?.inServiceArea()?.let { Sourced(it, id, Fidelity.MEASURED, clock()) }
 }
 
 /**
@@ -67,7 +83,7 @@ class NaviDestinationSource(
     override val priority = 3
     override suspend fun availability() = provider.availability()
     override suspend fun read() =
-        provider.currentDestination()?.let { Sourced(it, id, Fidelity.DERIVED, clock()) }
+        provider.currentDestination()?.inServiceArea()?.let { Sourced(it, id, Fidelity.DERIVED, clock()) }
 }
 
 /**

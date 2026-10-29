@@ -9,3 +9,6 @@ build/
 .cxx
 *.keystore
 *.jks
+
+# release 서명 정보 (저장소에 넣지 않음)
+keystore.properties

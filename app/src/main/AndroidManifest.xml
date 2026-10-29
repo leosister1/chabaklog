@@ -3,8 +3,8 @@
 
     <uses-feature android:name="android.hardware.type.automotive" android:required="true" />
 
-    <!-- 읽기 권한만 선언한다 (차박로그는 차량을 제어하지 않는다). 1단계 결과표 기준. -->
-    <!-- Pleos Vehicle SDK -->
+    <!-- 읽기 권한만 선언한다 (차박로그는 차량을 제어하지 않는다). 4단계(10/29) 점검: 아래 권한은 모두 코드에서 실제로 쓴다. -->
+    <!-- Pleos Vehicle SDK: 좌석 점유(감지 2순위), 도어(감지 1순위·문 열림), SOC, 공조 전원, 조향각(주차 난이도) -->
     <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
     <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
     <uses-permission android:name="pleos.car.permission.CAR_ENERGY" />
@@ -13,7 +13,7 @@
     <!-- AAOS 표준 속성: 기어, 외기 온도 -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT" />
-    <!-- NaviHelper: 정보 조회 / 경유지 추가 -->
+    <!-- NaviHelper 3.0.5 소스 기준: NAVI_ROUTE = 현재 위치·목적지·경유지 조회, NAVI_ROUTE_SEARCH = 경로 요청·경유지 추가 -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
     <!-- 날씨 예보 (없으면 내장 기온표로 대체) -->

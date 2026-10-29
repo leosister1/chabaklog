@@ -321,8 +321,17 @@ class SessionTracker(
         val id = _state.value.sessionId ?: return
         val runningHvac = hvacOnSinceMs?.let { nowMs - it } ?: 0
         db.sessions().byId(id)?.let { current ->
+            // 세션을 시작할 때 위치를 못 받았으면(내비가 아직 준비 전 등) tick마다 다시 시도해 채운다
+            val located = if (current.latitude == null) {
+                val loc = registry.location.resolve()
+                loc.result?.value?.let { p ->
+                    val place = places.matchOrCreate(p, current.startedAtMs)
+                    Log.i(tag, "세션 #$id 위치 늦게 확인: ${loc.usedSource?.key}")
+                    current.copy(placeId = place.id, latitude = p.latitude, longitude = p.longitude, locationSource = loc.usedSource?.label)
+                } ?: current
+            } else current
             db.sessions().update(
-                current.copy(
+                located.copy(
                     socEnd = _state.value.socPercent ?: current.socEnd,
                     hvacOnMinutes = ((hvacOnAccumMs + runningHvac) / 60_000).toInt(),
                     doorOpenCount = doorOpenCount,

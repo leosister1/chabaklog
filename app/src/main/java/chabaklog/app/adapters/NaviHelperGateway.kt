@@ -7,6 +7,7 @@ import ai.pleos.playground.navi.data.DestinationInfo
 import ai.pleos.playground.navi.data.RequestWaypointInfo
 import ai.pleos.playground.navi.data.RouteInfo
 import ai.pleos.playground.navi.data.RouteStartInfo
+import ai.pleos.playground.navi.data.RouteWithWaypointsRequest
 import ai.pleos.playground.navi.data.WaypointChangedInfo
 import ai.pleos.playground.navi.data.WaypointInfo
 import ai.pleos.playground.navi.helper.NaviHelper
@@ -139,6 +140,25 @@ class NaviHelperGateway(context: Context) : NaviDestinationProvider, NaviLocatio
             RouteInfo(
                 latitude = place.latitude, longitude = place.longitude,
                 poiName = place.name, poiId = place.poiId, address = place.address, poiSubId = "0",
+            )
+        )
+    }
+
+    /** 목적지와 경유지를 한 번에 요청한다 (경로 계산 중 addWaypoint가 경로를 취소하는 문제를 피함) */
+    fun requestRouteWithWaypoints(destination: NaviPlace, waypoints: List<NaviPlace>) = guarded("requestRouteWithWaypoints") {
+        navi.requestRouteWithWaypoints(
+            RouteWithWaypointsRequest(
+                destination = RouteInfo(
+                    latitude = destination.latitude, longitude = destination.longitude,
+                    poiName = destination.name, poiId = destination.poiId, address = destination.address, poiSubId = "0",
+                ),
+                waypoints = waypoints.mapIndexed { i, w ->
+                    RequestWaypointInfo(
+                        latitude = w.latitude, longitude = w.longitude, poiName = w.name,
+                        waypointIndex = if (i == 0) WaypointIndex.FIRST else WaypointIndex.SECOND,
+                        poiId = w.poiId, address = w.address, poiSubId = "0",
+                    )
+                },
             )
         )
     }

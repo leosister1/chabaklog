@@ -85,6 +85,22 @@ class LocationChainTest {
         assertEquals("location.aaos", reg.location.resolve().usedSource?.key)
     }
 
+    @Test fun `한국 밖 좌표는 버리고 다음 경로로 넘어간다`() = runTest {
+        // 에뮬레이터 재시작 직후: 내비는 아직 응답 없음, AAOS는 기본 GPS(미국 마운틴뷰)
+        val naviLoc = FakeNaviLocation(Availability.AVAILABLE, null)
+        val loc = FakeLocation(Availability.AVAILABLE, GeoPoint(37.4220, -122.0841))
+        val navi = FakeNavi(Availability.AVAILABLE, GeoPoint(37.8, 127.5)) // 자라섬 근처 목적지
+        val reg = registry(FakeVehicleGateway(), loc, navi, naviLoc = naviLoc)
+        val r = reg.location.resolve()
+        assertEquals("location.navi_destination", r.usedSource?.key)
+
+        navi.dest = GeoPoint(0.0, 0.0) // 경로 취소 직후 내비가 주는 빈 목적지도 버린다
+        assertNull(reg.location.resolve().result)
+
+        naviLoc.point = GeoPoint(37.41, 127.09) // 내비가 준비되면 1순위
+        assertEquals("location.navi_current", reg.location.resolve().usedSource?.key)
+    }
+
     @Test fun `AAOS 위치가 되면 1순위를 쓴다`() = runTest {
         val r = registry(FakeVehicleGateway()).location.resolve()
         assertEquals("location.aaos", r.usedSource?.key)

@@ -139,6 +139,24 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
             }
 
             message.value = "${t.name} 경유지 넣는 중…"
+            suspend fun waitForToilet(timeoutMs: Long) = withTimeoutOrNull(timeoutMs) {
+                delay(1_500)
+                while (navi.waypoints().orEmpty().none { matches(it.name) }) delay(1_500)
+                true
+            } ?: false
+
+            var ok = false
+            var notes: List<String> = emptyList()
+            if (!routedHere()) {
+                // 아직 이 캠핑장으로 가는 경로가 없으면 목적지와 화장실을 한 번에 요청한다 (4단계)
+                navi.requestRouteWithWaypoints(
+                    NaviPlace(camp.name, camp.latitude, camp.longitude, camp.address ?: ""), listOf(toilet),
+                )
+                ok = waitForToilet(10_000)
+                if (ok) { message.value = "경유지에 넣었어요: ${t.name} → ${camp.name}"; return@launch }
+                notes = listOf("한번에요청실패")
+            }
+            // 이미 경로가 있거나 한 번에 요청이 안 될 때: 경로를 확인하고 경유지를 덧붙인다
             ensureRoute()
             val existing = navi.waypoints().orEmpty()
             if (existing.any { matches(it.name) }) {
@@ -147,7 +165,7 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
             if (existing.size >= 2) {
                 message.value = "내비 경유지가 이미 2곳이라 더 넣을 수 없어요. 내비에서 경유지를 지운 뒤 다시 눌러 주세요"; return@launch
             }
-            var (ok, notes) = tryAdd()
+            tryAdd().let { ok = it.first; notes = notes + it.second }
             if (!ok) {
                 // 경로 계산 중에 넣으면 내비가 경로를 취소한다(10/29 확인) → 경로를 다시 잡고 한 번 더
                 message.value = "${t.name} 경유지 다시 시도 중…"
