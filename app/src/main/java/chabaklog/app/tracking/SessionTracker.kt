@@ -4,11 +4,11 @@ import android.car.drivingstate.CarUxRestrictionsManager
 import android.util.Log
 import chabaklog.app.adapters.AaosLocationProvider
 import chabaklog.app.adapters.NaviHelperGateway
-import chabaklog.app.adapters.PendingClimateTable
-import chabaklog.app.adapters.PendingWeatherClient
 import chabaklog.app.adapters.PleosVehicleGateway
 import chabaklog.app.adapters.VehicleConnection
+import chabaklog.app.data.AssetClimateTable
 import chabaklog.app.data.ChabaklogDatabase
+import chabaklog.app.data.PlaceRepository
 import chabaklog.app.data.SessionEntity
 import chabaklog.datasource.DataSourceRegistry
 import chabaklog.datasource.SourceReportRow
@@ -23,6 +23,7 @@ import chabaklog.datasource.vehicle.Gear
 import chabaklog.datasource.vehicle.Subscription
 import chabaklog.datasource.vehicle.VehicleEvent
 import chabaklog.datasource.vehicle.VehicleSignal
+import chabaklog.datasource.temperature.WeatherClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -78,6 +79,9 @@ class SessionTracker(
     private val connection: VehicleConnection,
     private val navi: NaviHelperGateway,
     private val aaosLocation: AaosLocationProvider,
+    private val weather: WeatherClient,
+    private val climate: AssetClimateTable,
+    private val places: PlaceRepository,
     private val scope: CoroutineScope,
 ) {
     private val tag = "CHABAK_TRACKER"
@@ -116,8 +120,8 @@ class SessionTracker(
                 naviLocation = navi,
                 platformLocation = aaosLocation,
                 navi = navi,
-                weather = PendingWeatherClient,
-                climate = PendingClimateTable,
+                weather = weather,
+                climate = climate,
                 detectionConfig = DetectionConfig(dwellMs = dwellMs),
             )
 
@@ -168,6 +172,14 @@ class SessionTracker(
     fun manualEnd() { manualInputs?.trySend(Input.ManualEnd(System.currentTimeMillis())) }
 
     fun refreshSourcesAsync() { scope.launch { refreshSources() } }
+
+    /** 위치 최후 대체: 사용자가 지도에서 고른 지점 */
+    fun pickLocationManually(point: chabaklog.datasource.location.GeoPoint) {
+        if (::registry.isInitialized) {
+            registry.manualLocation.pick(point)
+            refreshSourcesAsync()
+        }
+    }
 
     // ---------- 처리 ----------
 
@@ -262,9 +274,12 @@ class SessionTracker(
         doorOpenCount = 0
         hvacOnAccumMs = 0
         hvacOnSinceMs = if (s.hvacOn == true) d.atMs else null
+        // 가까운 장소(공공 캠핑장·지난 차박지)에 연결하고, 없으면 "내 차박지"를 만든다
+        val place = location.result?.value?.let { places.matchOrCreate(it, d.atMs) }
         val id = db.sessions().insert(
             SessionEntity(
                 startedAtMs = d.atMs,
+                placeId = place?.id,
                 detectorId = registry.detector.id.key,
                 confidence = d.confidence.name,
                 latitude = location.result?.value?.latitude,

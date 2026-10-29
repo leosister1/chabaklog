@@ -16,7 +16,9 @@
     <!-- NaviHelper: 정보 조회 / 경유지 추가 -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
-    <!-- 위치 1순위 (AAOS LocationManager) -->
+    <!-- 날씨 예보 (없으면 내장 기온표로 대체) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 위치 2순위 (AAOS LocationManager) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 

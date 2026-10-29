@@ -30,6 +30,13 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions WHERE placeId = :placeId ORDER BY startedAtMs DESC")
     fun observeForPlace(placeId: Long): Flow<List<SessionEntity>>
+
+    /** 예측용: 끝난 실제 기록만 (시연용 제외) */
+    @Query("SELECT * FROM sessions WHERE endedAtMs IS NOT NULL AND isDemo = 0")
+    suspend fun realFinished(): List<SessionEntity>
+
+    @Query("DELETE FROM sessions WHERE isDemo = 1")
+    suspend fun deleteDemo()
 }
 
 @Dao
@@ -45,4 +52,10 @@ interface PlaceDao {
 
     @Query("SELECT COUNT(*) FROM places")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM places")
+    suspend fun all(): List<PlaceEntity>
+
+    @Query("SELECT * FROM places WHERE id = :id")
+    suspend fun byId(id: Long): PlaceEntity?
 }

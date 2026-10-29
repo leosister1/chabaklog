@@ -4,22 +4,33 @@ import android.app.Application
 import android.content.Context
 import chabaklog.app.adapters.AaosLocationProvider
 import chabaklog.app.adapters.NaviHelperGateway
+import chabaklog.app.adapters.OpenMeteoWeatherClient
 import chabaklog.app.adapters.VehicleConnection
+import chabaklog.app.data.AssetClimateTable
 import chabaklog.app.data.ChabaklogDatabase
+import chabaklog.app.data.KoreaOutline
+import chabaklog.app.data.PlaceRepository
+import chabaklog.app.tracking.Forecaster
 import chabaklog.app.tracking.SessionTracker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class ChabaklogApp : Application() {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val database: ChabaklogDatabase by lazy { ChabaklogDatabase.create(this) }
     val navi: NaviHelperGateway by lazy { NaviHelperGateway(this).also { it.connect() } }
     val vehicle: VehicleConnection by lazy { VehicleConnection(this) }
+    val weather by lazy { OpenMeteoWeatherClient() }
+    val climate by lazy { AssetClimateTable(this) }
+    val outline by lazy { KoreaOutline(this) }
+    val places by lazy { PlaceRepository(this, database) }
+    val forecaster by lazy { Forecaster(database, weather, climate) }
     val tracker: SessionTracker by lazy {
-        SessionTracker(database, vehicle, navi, AaosLocationProvider(this), appScope)
+        SessionTracker(database, vehicle, navi, AaosLocationProvider(this), weather, climate, places, appScope)
     }
 
     private val prefs by lazy { getSharedPreferences("chabaklog", Context.MODE_PRIVATE) }
@@ -30,6 +41,7 @@ class ChabaklogApp : Application() {
     override fun onCreate() {
         super.onCreate()
         _demoMode.value = prefs.getBoolean(KEY_DEMO, false)
+        appScope.launch { places.seedIfEmpty() }
         tracker.start(dwellMs())
     }
 

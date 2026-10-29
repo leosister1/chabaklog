@@ -30,6 +30,8 @@ data class SessionEntity(
     val fullLockCount: Int = 0,
     val parkingScore: Float? = null,
     val parkingLevel: String? = null,
+    /** 시연용으로 넣은 기록. 화면에 "시연용"으로 표시하고 예측에는 쓰지 않는다. */
+    val isDemo: Boolean = false,
 )
 
 enum class PlaceKind { PUBLIC_CAMPSITE, DEMO_SEED, MINE }
@@ -43,4 +45,7 @@ data class PlaceEntity(
     val longitude: Double,
     val kind: PlaceKind,
     val note: String? = null,
+    val address: String? = null,
+    /** 외부 데이터 식별자 (예: 고캠핑 번호) — 시드 중복 방지 */
+    val externalId: String? = null,
 )

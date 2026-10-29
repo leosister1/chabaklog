@@ -1,0 +1,445 @@
+{
+"source": "문화체육관광부·한국관광공사 공공 우수야영장(2023~2025, 고캠핑 https://www.gocamping.or.kr/camp/best/list.do). 공공데이터포털 '한국관광공사_친환경 공공 우수야영장 소개정보' 이용허락범위 제한 없음. 좌표는 고캠핑 지도 표시 좌표(2026-10-29 수집).",
+"campsites": [
+{
+"name": "광명도덕산캠핑장",
+"lat": 37.45924,
+"lon": 126.86077,
+"address": "경기도 광명시 밤일안로42번길 69 (하안동)",
+"gocampingNo": 331,
+"selectedYear": 2023
+},
+{
+"name": "교래자연휴양림야영장",
+"lat": 33.45133,
+"lon": 126.65666,
+"address": "제주특별자치도 제주시 조천읍 남조로 2023",
+"gocampingNo": 344,
+"selectedYear": 2024
+},
+{
+"name": "금은모래 캠핑장",
+"lat": 37.29306,
+"lon": 127.6669,
+"address": "경기도 여주시 강변유원지길 105 (연양동)",
+"gocampingNo": 484,
+"selectedYear": 2024
+},
+{
+"name": "낙동강 레포츠밸리 강변오토캠핑장",
+"lat": 35.67277,
+"lon": 128.36818,
+"address": "대구광역시 달성군 구지면 오설리 873",
+"gocampingNo": 549,
+"selectedYear": 2024
+},
+{
+"name": "내원야영장",
+"lat": 35.29678,
+"lon": 127.81246,
+"address": "경상남도 산청군 삼장면 대포리 산 106-2",
+"gocampingNo": 590,
+"selectedYear": 2023
+},
+{
+"name": "단호샌드파크 캠핑장",
+"lat": 36.5557,
+"lon": 128.63029,
+"address": "경상북도 안동시 남후면 풍산단호로 835-35",
+"gocampingNo": 689,
+"selectedYear": 2023
+},
+{
+"name": "달궁자동차야영장",
+"lat": 35.35516,
+"lon": 127.55836,
+"address": "전북특별자치도 남원시 산내면 지리산로 365",
+"gocampingNo": 696,
+"selectedYear": 2025
+},
+{
+"name": "덕유대자동차야영장",
+"lat": 35.90089,
+"lon": 127.77525,
+"address": "전북특별자치도 무주군 설천면 구천동1로 159",
+"gocampingNo": 810,
+"selectedYear": 2024
+},
+{
+"name": "망상오토캠핑리조트",
+"lat": 37.60043,
+"lon": 129.07846,
+"address": "강원특별자치도 동해시 동해대로6370",
+"gocampingNo": 889,
+"selectedYear": 2025
+},
+{
+"name": "백운산 자연휴양림 야영장",
+"lat": 35.05595,
+"lon": 127.59308,
+"address": "전남광주통합특별시 광양시 옥룡면 백계로 337",
+"gocampingNo": 1279,
+"selectedYear": 2023
+},
+{
+"name": "별난독서문화체험장",
+"lat": 37.88497,
+"lon": 126.87777,
+"address": "경기도 파주시 법원읍 술이홀로 1315",
+"gocampingNo": 1321,
+"selectedYear": 2023
+},
+{
+"name": "소백산국립공원 남천야영장",
+"lat": 37.03898,
+"lon": 128.51293,
+"address": "충청북도 단양군 영춘면 남천계곡로 378",
+"gocampingNo": 1717,
+"selectedYear": 2025
+},
+{
+"name": "소백산국립공원 삼가야영장",
+"lat": 36.92632,
+"lon": 128.50226,
+"address": "경상북도 영주시 풍기읍 삼가로 509",
+"gocampingNo": 1718,
+"selectedYear": 2024
+},
+{
+"name": "송호관광지",
+"lat": 36.12974,
+"lon": 127.67636,
+"address": "충청북도 영동군 양산면 송호로 105",
+"gocampingNo": 1807,
+"selectedYear": 2023
+},
+{
+"name": "수승대야영장",
+"lat": 35.75871,
+"lon": 127.83151,
+"address": "경상남도 거창군 위천면 강천리 3번지",
+"gocampingNo": 1833,
+"selectedYear": 2023
+},
+{
+"name": "안산화랑오토캠핑장",
+"lat": 37.32269,
+"lon": 126.81668,
+"address": "경기도 안산시 단원구 초지동 동산로 268",
+"gocampingNo": 2022,
+"selectedYear": 2023
+},
+{
+"name": "안성맞춤 캠핑장",
+"lat": 37.03437,
+"lon": 127.30885,
+"address": "경기도 안성시 보개면 남사당로 198-5",
+"gocampingNo": 2031,
+"selectedYear": 2024
+},
+{
+"name": "연곡해변 솔향기캠핑장",
+"lat": 37.85881,
+"lon": 128.85336,
+"address": "강원특별자치도 강릉시 연곡면 해안로 1282-10",
+"gocampingNo": 2185,
+"selectedYear": 2023
+},
+{
+"name": "자라섬 캠핑장",
+"lat": 37.82087,
+"lon": 127.52092,
+"address": "경기도 가평군 가평읍 자라섬로 60 자람섬안내소",
+"gocampingNo": 2616,
+"selectedYear": 2025
+},
+{
+"name": "정선 펫 캠핑장",
+"lat": 37.36137,
+"lon": 128.62671,
+"address": "강원특별자치도 정선군 정선읍 동강로 2914",
+"gocampingNo": 2697,
+"selectedYear": 2024
+},
+{
+"name": "정양레포츠공원 오토캠핑장",
+"lat": 35.55819,
+"lon": 128.16545,
+"address": "경상남도 합천군 대양면 정양리 613",
+"gocampingNo": 2700,
+"selectedYear": 2024
+},
+{
+"name": "정읍시 국민여가캠핑장",
+"lat": 35.52415,
+"lon": 126.89564,
+"address": "전북특별자치도 정읍시 내장산로 410 (부전동)",
+"gocampingNo": 2703,
+"selectedYear": 2023
+},
+{
+"name": "증산수도계곡캠핑장",
+"lat": 35.89887,
+"lon": 128.02072,
+"address": "경상북도 김천시 증산면 수도길 25",
+"gocampingNo": 2793,
+"selectedYear": 2024
+},
+{
+"name": "초막골생태공원 느티나무야영장",
+"lat": 37.34737,
+"lon": 126.91813,
+"address": "경기도 군포시 초막골길 130 (산본동)",
+"gocampingNo": 2963,
+"selectedYear": 2025
+},
+{
+"name": "학동자동차 야영장",
+"lat": 34.77742,
+"lon": 128.6415,
+"address": "경상남도 거제시 동부면 거제대로 981",
+"gocampingNo": 3389,
+"selectedYear": 2024
+},
+{
+"name": "황매산 별쿵 캠핑장",
+"lat": 35.48162,
+"lon": 127.98215,
+"address": "경상남도 합천군 가회면 황매산공원길 331",
+"gocampingNo": 3575,
+"selectedYear": 2023
+},
+{
+"name": "황산문화체육공원 국민여가캠핑장",
+"lat": 35.30175,
+"lon": 128.9896,
+"address": "경상남도 양산시 물금읍 황산공원5길 13",
+"gocampingNo": 3578,
+"selectedYear": 2023
+},
+{
+"name": "거창 국민여가캠핑장",
+"lat": 35.7612,
+"lon": 127.724,
+"address": "경상남도 거창군 북상면 덕유월성로 1312-96",
+"gocampingNo": 6732,
+"selectedYear": 2025
+},
+{
+"name": "달서별빛캠프 캠핑장",
+"lat": 35.82324,
+"lon": 128.55704,
+"address": "대구광역시 달서구 앞산순환로 248 (송현동)",
+"gocampingNo": 6765,
+"selectedYear": 2023
+},
+{
+"name": "왕송호수 캠핑장",
+"lat": 37.30643,
+"lon": 126.95209,
+"address": "경기도 의왕시 월암동 571번지 일원",
+"gocampingNo": 6865,
+"selectedYear": 2025
+},
+{
+"name": "국립화천숲속야영장",
+"lat": 38.01031,
+"lon": 127.79756,
+"address": "강원특별자치도 화천군 간동면 배후령길 1144",
+"gocampingNo": 6959,
+"selectedYear": 2024
+},
+{
+"name": "화성시 향남 오토캠핑장",
+"lat": 37.13824,
+"lon": 126.92818,
+"address": "경기도 화성시 만세구 향남읍 도이2길 113-26",
+"gocampingNo": 7096,
+"selectedYear": 2025
+},
+{
+"name": "별빛야영장",
+"lat": 36.14029,
+"lon": 128.99649,
+"address": "경상북도 영천시 화북면 별빛로 681-32",
+"gocampingNo": 7154,
+"selectedYear": 2023
+},
+{
+"name": "제암산자연휴양림 야영장",
+"lat": 34.69982,
+"lon": 126.98748,
+"address": "전남광주통합특별시 보성군 웅치면 대산길 330",
+"gocampingNo": 7207,
+"selectedYear": 2023
+},
+{
+"name": "평화누리캠핑장",
+"lat": 37.89204,
+"lon": 126.74479,
+"address": "경기도 파주시 문산읍 임진각로 148-40",
+"gocampingNo": 7254,
+"selectedYear": 2024
+},
+{
+"name": "전월산 국민여가캠핑장",
+"lat": 36.51406,
+"lon": 127.30026,
+"address": "세종특별자치시 전월산길 54 (세종동)",
+"gocampingNo": 7541,
+"selectedYear": 2025
+},
+{
+"name": "가야산오토캠핑장",
+"lat": 35.85623,
+"lon": 128.10328,
+"address": "경상북도 성주군 가천면 동신로 33",
+"gocampingNo": 7757,
+"selectedYear": 2025
+},
+{
+"name": "구곡폭포 국민여가 캠핑장",
+"lat": 37.79492,
+"lon": 127.60866,
+"address": "강원특별자치도 춘천시 남산면 강촌구곡길 324",
+"gocampingNo": 7879,
+"selectedYear": 2024
+},
+{
+"name": "붉은오름 자연휴양림 숲속 야영장",
+"lat": 33.40144,
+"lon": 126.67576,
+"address": "제주특별자치도 서귀포시 표선면 남조로 1487-73",
+"gocampingNo": 7895,
+"selectedYear": 2025
+},
+{
+"name": "소요별앤숲테마파크",
+"lat": 37.95015,
+"lon": 127.06599,
+"address": "경기도 동두천시 평화로2922번길 76 (상봉암동)",
+"gocampingNo": 7913,
+"selectedYear": 2024
+},
+{
+"name": "삼강나루캠핑장",
+"lat": 36.56434,
+"lon": 128.30074,
+"address": "경상북도 예천군 풍양면 삼강리길 47-14",
+"gocampingNo": 7956,
+"selectedYear": 2024
+},
+{
+"name": "천왕산 가족캠핑장",
+"lat": 37.47906,
+"lon": 126.83145,
+"address": "서울특별시 구로구 연동로12길 149 (항동)",
+"gocampingNo": 7967,
+"selectedYear": 2024
+},
+{
+"name": "라이프위드도그",
+"lat": 38.00156,
+"lon": 128.23169,
+"address": "강원특별자치도 인제군 인제읍 자작나무숲길 1112",
+"gocampingNo": 100183,
+"selectedYear": 2023
+},
+{
+"name": "월아산 자연휴양림",
+"lat": 35.19991,
+"lon": 128.19413,
+"address": "경상남도 진주시 진성면 달음산로 313",
+"gocampingNo": 100528,
+"selectedYear": 2023
+},
+{
+"name": "태백산국립공원 소도야영장",
+"lat": 37.11808,
+"lon": 128.95174,
+"address": "강원특별자치도 태백시 천제단길 181 (소도동)",
+"gocampingNo": 100551,
+"selectedYear": 2023
+},
+{
+"name": "북암농촌체험관",
+"lat": 36.54088,
+"lon": 127.78645,
+"address": "충청북도 보은군 속리산면 속리산로 1220-6",
+"gocampingNo": 100601,
+"selectedYear": 2023
+},
+{
+"name": "영도 마리노 오토캠핑장",
+"lat": 35.10215,
+"lon": 129.06138,
+"address": "부산광역시 영도구 청학동 330-119",
+"gocampingNo": 100620,
+"selectedYear": 2024
+},
+{
+"name": "다도해해상국립공원 구계등야영장",
+"lat": 34.29834,
+"lon": 126.70928,
+"address": "전남광주통합특별시 완도군 완도읍 구계등길 47-1",
+"gocampingNo": 100746,
+"selectedYear": 2025
+},
+{
+"name": "충주 목계솔밭 캠핑장",
+"lat": 37.07448,
+"lon": 127.87973,
+"address": "충청북도 충주시 중앙탑면 첨단산업로 1438",
+"gocampingNo": 100812,
+"selectedYear": 2023
+},
+{
+"name": "북한산 사기막야영장",
+"lat": 37.67622,
+"lon": 126.96463,
+"address": "경기도 고양시 덕양구 북한산로 618번길 130 (효자동)",
+"gocampingNo": 101101,
+"selectedYear": 2024
+},
+{
+"name": "내장산국립공원 내장호야영장",
+"lat": 35.50745,
+"lon": 126.90586,
+"address": "전북특별자치도 정읍시 내장호반로 276 (내장동)",
+"gocampingNo": 101153,
+"selectedYear": 2025
+},
+{
+"name": "계룡산 갑사자동차야영장",
+"lat": 36.37294,
+"lon": 127.17812,
+"address": "충청남도 공주시 계룡면 갑사로 451",
+"gocampingNo": 101403,
+"selectedYear": 2024
+},
+{
+"name": "국립김천숲속야영장",
+"lat": 35.9489,
+"lon": 127.95427,
+"address": "경상북도 김천시 대덕면 조룡길 865",
+"gocampingNo": 101520,
+"selectedYear": 2024
+},
+{
+"name": "강천섬캠핑장",
+"lat": 37.23206,
+"lon": 127.69802,
+"address": "경기도 여주시 강천면 강천리길 88-60",
+"gocampingNo": 101637,
+"selectedYear": 2025
+},
+{
+"name": "덕신야영장",
+"lat": 34.93292,
+"lon": 127.87392,
+"address": "경상남도 남해군 설천면 남해대로 4110-9 설천초등학교덕신분교",
+"gocampingNo": 101772,
+"selectedYear": 2025
+}
+]
+}

@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import chabaklog.app.data.PlaceKind
 import chabaklog.app.data.SessionEntity
 import chabaklog.app.tracking.LiveState
 import chabaklog.app.tracking.Phase
@@ -188,6 +187,7 @@ private fun HomeScreen(viewModel: MainViewModel, live: LiveState) {
                 Stat("외기", live.outsideTempC?.let { "${"%.1f".format(it)}°" } ?: "-", w)
             }
         }
+        item { TonightCard(viewModel) }
         live.lastParking?.let { p ->
             item {
                 InfoCard(
@@ -220,24 +220,14 @@ private fun HomeScreen(viewModel: MainViewModel, live: LiveState) {
     }
 }
 
-// ---------- 지도 ----------
-
 @Composable
-private fun MapScreen(viewModel: MainViewModel) {
-    val places by viewModel.places.collectAsStateWithLifecycle()
-    Title("지도")
-    InfoCard("지도 영역", "3단계: 네트워크 없이 동작하는 내장 지도 + 장소 표시. 위치를 모를 때 여기서 직접 선택")
-    if (places.isEmpty()) Text("아직 장소 데이터가 없습니다.")
-    LazyColumn {
-        items(places) { p ->
-            val tag = when (p.kind) {
-                PlaceKind.PUBLIC_CAMPSITE -> "공공 캠핑장"
-                PlaceKind.DEMO_SEED -> "시연용 데이터"
-                PlaceKind.MINE -> "내 기록"
-            }
-            InfoCard(p.name, "$tag · ${"%.4f".format(p.latitude)}, ${"%.4f".format(p.longitude)}")
-        }
-    }
+private fun TonightCard(viewModel: MainViewModel) {
+    val f by viewModel.homeForecast.collectAsStateWithLifecycle()
+    val body = f?.let {
+        val p = it.prediction
+        "약 ${p.socUsedPercent.roundToInt()}% 사용 예상 (${p.hours.roundToInt()}시간) · 기온 ${"%.1f".format(p.tempC)}° ${it.tempSource} · ${p.basis.label}"
+    } ?: "지금 위치를 받으면 계산합니다"
+    InfoCard("오늘 밤 여기서 차박하면", body)
 }
 
 // ---------- 기록 ----------
@@ -252,7 +242,7 @@ private fun LogScreen(viewModel: MainViewModel) {
 
 @Composable
 private fun SessionCard(s: SessionEntity) {
-    val range = "${s.startedAtMs.time()} ~ ${s.endedAtMs?.time() ?: "진행 중"}"
+    val range = (if (s.isDemo) "[시연용] " else "") + "${s.startedAtMs.time()} ~ ${s.endedAtMs?.time() ?: "진행 중"}"
     val soc = if (s.socStart != null && s.socEnd != null) "배터리 ${s.socStart.pct()} → ${s.socEnd.pct()}" else "배터리 기록 없음"
     InfoCard(range, "$soc · 주차 ${s.parkingLevel ?: "-"} · 문 열림 ${s.doorOpenCount}회 · 공조 ${s.hvacOnMinutes}분")
 }
@@ -324,6 +314,19 @@ private fun SourcesScreen(viewModel: MainViewModel, live: LiveState, test: Conne
         }
         items(live.sources) { row ->
             InfoCard(row.category, (row.active?.label ?: "없음") + (row.note?.let { " · $it" } ?: ""))
+        }
+        item {
+            Column {
+                Spacer(Modifier.padding(8.dp))
+                Text("시연용 기록", style = MaterialTheme.typography.titleLarge)
+                Text("영상 촬영용 예시 기록입니다. 화면에 '시연용'으로 표시되고 예측에는 쓰지 않습니다.", style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.insertDemo() }) { Text("시연용 기록 넣기") }
+                    OutlinedButton(onClick = { viewModel.clearDemo() }) { Text("시연용 기록 지우기") }
+                }
+                val msg by viewModel.message.collectAsStateWithLifecycle()
+                msg?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+            }
         }
         item {
             Column {
