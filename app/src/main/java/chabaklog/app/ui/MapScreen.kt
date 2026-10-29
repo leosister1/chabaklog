@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -212,7 +213,24 @@ private fun PlaceCard(s: PlaceSummary, forecast: chabaklog.app.tracking.Forecast
                 Button(onClick = { viewModel.setDestination(p) }) { Text("목적지로 설정") }
                 OutlinedButton(onClick = { viewModel.pickHere(p) }) { Text("여기를 내 위치로") }
             }
-            Text("근처 화장실 경유지: 공중화장실 데이터를 넣으면 사용 가능", style = MaterialTheme.typography.bodySmall)
+            val toilets = viewModel.toiletsNear(p)
+            if (toilets.isNotEmpty()) {
+                Text("가는 길에 들를 화장실", style = MaterialTheme.typography.titleSmall)
+                toilets.forEach { t ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${t.name} · 캠핑장에서 ${formatDistance(t.distanceM)}", style = MaterialTheme.typography.bodyMedium)
+                            Text(listOf(t.kind, t.openHours).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                        }
+                        OutlinedButton(onClick = { viewModel.addToiletWaypoint(p, t) }) { Text("경유지로") }
+                    }
+                }
+                Text("출처: 전국공중화장실표준데이터 · 좌표 © OpenStreetMap", style = MaterialTheme.typography.labelSmall)
+            } else if (p.kind == PlaceKind.PUBLIC_CAMPSITE) {
+                Text("근처 화장실 정보 없음", style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
+
+private fun formatDistance(m: Int) = if (m < 1000) "${m}m" else "%.1fkm".format(m / 1000f)

@@ -79,3 +79,34 @@ fun loadPublicCampsites(context: Context): List<PlaceEntity> {
         )
     }
 }
+
+/** 캠핑장 근처 공중화장실 (assets/toilets_near_campsites.json, 캠핑장당 최대 3곳, 번지까지 일치한 좌표만) */
+data class NearbyToilet(
+    val name: String,
+    val kind: String,
+    val address: String,
+    val openHours: String,
+    val point: GeoPoint,
+    val distanceM: Int,
+)
+
+class ToiletIndex(context: Context) {
+    private val byCamp: Map<String, List<NearbyToilet>> = run {
+        val arr = JSONObject(context.readAsset("toilets_near_campsites.json")).getJSONArray("toilets")
+        (0 until arr.length()).map { arr.getJSONObject(it) }.groupBy(
+            keySelector = { it.getString("camp") },
+            valueTransform = {
+                NearbyToilet(
+                    name = it.getString("name"),
+                    kind = it.getString("kind"),
+                    address = it.getString("address"),
+                    openHours = it.optString("open"),
+                    point = GeoPoint(it.getDouble("lat"), it.getDouble("lon")),
+                    distanceM = it.getInt("distanceM"),
+                )
+            },
+        ).mapValues { (_, v) -> v.sortedBy { it.distanceM } }
+    }
+
+    fun near(campName: String): List<NearbyToilet> = byCamp[campName].orEmpty()
+}

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import chabaklog.app.ChabaklogApp
 import chabaklog.app.adapters.NaviPlace
+import chabaklog.app.data.NearbyToilet
 import chabaklog.app.data.PlaceEntity
 import chabaklog.app.data.PlaceKind
 import chabaklog.app.data.SessionEntity
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -88,6 +90,73 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
     fun setDestination(p: PlaceEntity) {
         app.navi.requestRoute(NaviPlace(p.name, p.latitude, p.longitude, p.address ?: ""))
         message.value = "내비 목적지로 보냈어요: ${p.name}"
+    }
+
+    /** 공공 캠핑장일 때만 근처 화장실 후보가 있다 */
+    fun toiletsNear(p: PlaceEntity): List<NearbyToilet> =
+        if (p.kind == PlaceKind.PUBLIC_CAMPSITE) app.toilets.near(p.name) else emptyList()
+
+    /**
+     * 화장실을 경유지로 넣는다. 경유지는 경로가 있어야 붙으므로, 내비 목적지가 이 캠핑장이 아니면 먼저 목적지로 보낸다.
+     * NaviHelper 경유지는 최대 2개 → 늘 FIRST 자리를 쓴다(다시 누르면 교체).
+     */
+    fun addToiletWaypoint(camp: PlaceEntity, t: NearbyToilet) {
+        viewModelScope.launch {
+            val navi = app.navi
+            val toilet = NaviPlace(t.name, t.point.latitude, t.point.longitude, t.address)
+            fun matches(name: String) = name.isNotBlank() && (name.contains(t.name) || t.name.contains(name))
+
+            suspend fun routedHere(): Boolean {
+                val dest = navi.destination() ?: return false
+                return dest.latitude != 0.0 &&
+                    chabaklog.app.data.distanceMeters(GeoPoint(dest.latitude, dest.longitude), GeoPoint(camp.latitude, camp.longitude)) < 300
+            }
+
+            /** 이 캠핑장으로 가는 경로를 잡는다. 에뮬레이터 내비는 계산 완료 알림을 주지 않아 목적지가 바뀐 것을 확인하고 여유를 둔다 */
+            suspend fun ensureRoute() {
+                if (routedHere()) return
+                navi.requestRoute(NaviPlace(camp.name, camp.latitude, camp.longitude, camp.address ?: ""))
+                withTimeoutOrNull(10_000) { while (!routedHere()) delay(1_000) }
+                delay(2_500)
+            }
+
+            /** 경유지를 넣고 실제로 붙었는지 확인. 결과와 그 사이 내비 알림을 돌려준다 */
+            suspend fun tryAdd(): Pair<Boolean, List<String>> {
+                val seen = mutableListOf<String>()
+                val skip = navi.events.replayCache.size
+                val watcher = launch { navi.events.drop(skip).collect { seen += it } }
+                navi.addWaypoint(toilet)
+                // 경유지를 넣으면 내비가 기존 경로를 취소(onRouteCancelled)하고 경유지를 포함해 다시 계산한다.
+                // → 취소 알림에서 멈추지 말고, 경유지 목록에 나타날 때까지 1.5초 간격으로 확인 (최대 12초)
+                val ok = withTimeoutOrNull(12_000) {
+                    delay(1_500)
+                    while (navi.waypoints().orEmpty().none { matches(it.name) }) delay(1_500)
+                    true
+                } ?: false
+                watcher.cancel()
+                return ok to seen.filterNot { it.startsWith("onCurrentLocationInfo") || it.startsWith("onWayPointInfo") || it.startsWith("onDestinationInfo") }
+                    .map { it.substringBefore(" ").removePrefix("on") }
+            }
+
+            message.value = "${t.name} 경유지 넣는 중…"
+            ensureRoute()
+            val existing = navi.waypoints().orEmpty()
+            if (existing.any { matches(it.name) }) {
+                message.value = "이미 경유지에 있어요: ${t.name} → ${camp.name}"; return@launch
+            }
+            if (existing.size >= 2) {
+                message.value = "내비 경유지가 이미 2곳이라 더 넣을 수 없어요. 내비에서 경유지를 지운 뒤 다시 눌러 주세요"; return@launch
+            }
+            var (ok, notes) = tryAdd()
+            if (!ok) {
+                // 경로 계산 중에 넣으면 내비가 경로를 취소한다(10/29 확인) → 경로를 다시 잡고 한 번 더
+                message.value = "${t.name} 경유지 다시 시도 중…"
+                ensureRoute()
+                tryAdd().let { ok = it.first; notes = notes + listOf("재시도") + it.second }
+            }
+            message.value = if (ok) "경유지에 넣었어요: ${t.name} → ${camp.name}"
+            else "내비가 경유지를 받지 않았어요: ${t.name} (내비 알림: ${notes.joinToString(",").ifEmpty { "없음" }})"
+        }
     }
 
     fun pickHere(p: PlaceEntity) {

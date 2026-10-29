@@ -9,6 +9,7 @@ import chabaklog.app.adapters.VehicleConnection
 import chabaklog.app.data.AssetClimateTable
 import chabaklog.app.data.ChabaklogDatabase
 import chabaklog.app.data.KoreaOutline
+import chabaklog.app.data.ToiletIndex
 import chabaklog.app.data.PlaceRepository
 import chabaklog.app.tracking.Forecaster
 import chabaklog.app.tracking.SessionTracker
@@ -27,6 +28,7 @@ class ChabaklogApp : Application() {
     val weather by lazy { OpenMeteoWeatherClient() }
     val climate by lazy { AssetClimateTable(this) }
     val outline by lazy { KoreaOutline(this) }
+    val toilets by lazy { ToiletIndex(this) }
     val places by lazy { PlaceRepository(this, database) }
     val forecaster by lazy { Forecaster(database, weather, climate) }
     val tracker: SessionTracker by lazy {
