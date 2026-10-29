@@ -10,6 +10,7 @@ import chabaklog.datasource.detection.SeatOccupancyDetector
 import chabaklog.datasource.detection.SessionDecision
 import chabaklog.datasource.location.GeoPoint
 import chabaklog.datasource.location.NaviDestinationProvider
+import chabaklog.datasource.location.NaviLocationProvider
 import chabaklog.datasource.location.PlatformLocationProvider
 import chabaklog.datasource.parking.DisabledParkingEstimator
 import chabaklog.datasource.parking.ParkingDifficulty
@@ -45,6 +46,11 @@ private class FakeNavi(var avail: Availability, var dest: GeoPoint?) : NaviDesti
     override suspend fun currentDestination() = dest
 }
 
+private class FakeNaviLocation(var avail: Availability, var point: GeoPoint?) : NaviLocationProvider {
+    override suspend fun availability() = avail
+    override suspend fun currentLocation() = point
+}
+
 private class FakeWeather(var reachable: Boolean, var low: Float?) : WeatherClient {
     override suspend fun isReachable() = reachable
     override suspend fun tonightLow(at: GeoPoint) = low
@@ -60,13 +66,25 @@ private fun registry(
     loc: FakeLocation = FakeLocation(Availability.AVAILABLE, CAMPSITE),
     navi: FakeNavi = FakeNavi(Availability.AVAILABLE, null),
     weather: FakeWeather = FakeWeather(true, 1f),
+    naviLoc: FakeNaviLocation = FakeNaviLocation(Availability.UNSUPPORTED, null),
 ) = DataSourceRegistry(
-    vehicle, loc, navi, weather, FakeClimate,
+    vehicle, naviLoc, loc, navi, weather, FakeClimate,
     detectionConfig = DetectionConfig(dwellMs = 30 * MIN),
     month = { Month.NOVEMBER },
 )
 
 class LocationChainTest {
+    @Test fun `내비 차량 위치가 되면 AAOS보다 먼저 쓴다`() = runTest {
+        val naviLoc = FakeNaviLocation(Availability.AVAILABLE, GeoPoint(37.41, 127.09))
+        val reg = registry(FakeVehicleGateway(), naviLoc = naviLoc)
+        val r = reg.location.resolve()
+        assertEquals("location.navi_current", r.usedSource?.key)
+        assertEquals(37.41, r.result?.value?.latitude)
+
+        naviLoc.point = null // 내비가 위치를 못 주면 AAOS로
+        assertEquals("location.aaos", reg.location.resolve().usedSource?.key)
+    }
+
     @Test fun `AAOS 위치가 되면 1순위를 쓴다`() = runTest {
         val r = registry(FakeVehicleGateway()).location.resolve()
         assertEquals("location.aaos", r.usedSource?.key)
@@ -122,8 +140,12 @@ class StrategySelectionTest {
         val full = registry(FakeVehicleGateway.supporting(
             VehicleSignal.GEAR, VehicleSignal.SEAT_OCCUPANCY, VehicleSignal.DOOR_OPEN, VehicleSignal.STEERING_ANGLE,
         )).apply { selectStrategies() }
-        assertIs<SeatOccupancyDetector>(full.detector)
+        assertIs<DoorPatternDetector>(full.detector) // 1단계 결정: 문 패턴이 1순위
         assertIs<ReverseAndSteeringEstimator>(full.parking)
+
+        val seatOnly = registry(FakeVehicleGateway.supporting(VehicleSignal.GEAR, VehicleSignal.SEAT_OCCUPANCY))
+            .apply { selectStrategies() }
+        assertIs<SeatOccupancyDetector>(seatOnly.detector)
 
         val partial = registry(FakeVehicleGateway.supporting(VehicleSignal.GEAR, VehicleSignal.DOOR_OPEN))
             .apply { selectStrategies() }
@@ -174,6 +196,14 @@ class SessionDetectorTest {
         d.onEvent(DoorChanged(false, 20 * MIN))
         assertEquals(SessionDecision.None, d.onTick(45 * MIN))
         assertEquals(SessionDecision.Started(20 * MIN, Confidence.MEDIUM), d.onTick(50 * MIN))
+    }
+
+    @Test fun `문 패턴 감지 - 닫힘 알림이 반복돼도 기준 시각이 밀리지 않는다`() {
+        val d = DoorPatternDetector(cfg)
+        d.onEvent(GearChanged(Gear.PARK, 0))
+        d.onEvent(DoorChanged(false, 5 * MIN))  // 다른 문의 닫힘 알림
+        d.onEvent(DoorChanged(false, 25 * MIN))
+        assertEquals(SessionDecision.Started(0, Confidence.MEDIUM), d.onTick(30 * MIN))
     }
 
     @Test fun `수동 감지 - 버튼 입력을 한 번만 전달`() {

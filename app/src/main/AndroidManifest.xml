@@ -28,6 +28,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true">
+            <!-- 주행 중에도 간소화 화면을 보여 주기 위한 선언. 비신뢰 설치 앱에는 시스템이 적용하지 않을 수 있다(2단계 확인). -->
+            <meta-data android:name="distractionOptimized" android:value="true" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

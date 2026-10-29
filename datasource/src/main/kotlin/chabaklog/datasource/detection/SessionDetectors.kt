@@ -70,10 +70,13 @@ abstract class DwellBasedDetector(protected val config: DetectionConfig) : Sessi
     }
 }
 
-/** 1순위: P단 + 좌석 점유가 dwell 이상 유지 */
+/**
+ * 2순위: P단 + 좌석 점유가 dwell 이상 유지.
+ * 1단계 실측에서 에뮬레이터의 좌석 점유 값이 반대로 나와(앱 어댑터에서 보정) 문 신호가 없을 때만 쓴다.
+ */
 class SeatOccupancyDetector(config: DetectionConfig = DetectionConfig()) : DwellBasedDetector(config) {
     override val id = SourceId("detect.seat", "기어 P + 좌석 점유")
-    override val priority = 1
+    override val priority = 2
     override val requiredSignals = setOf(VehicleSignal.GEAR, VehicleSignal.SEAT_OCCUPANCY)
     override val confidence = Confidence.HIGH
 
@@ -87,13 +90,13 @@ class SeatOccupancyDetector(config: DetectionConfig = DetectionConfig()) : Dwell
 }
 
 /**
- * 2순위: P단 + 마지막으로 문이 닫힌 뒤 dwell 동안 문이 닫혀 있음.
+ * 1순위: P단 + 마지막으로 문이 닫힌 뒤 dwell 동안 문이 닫혀 있음.
  * "사람이 타고 문을 닫은 채 오래 머문다"는 추정이라 신뢰도는 MEDIUM.
  * 문이 한 번도 열리고 닫힌 적이 없으면(주차 후 내리지 않음) P단 진입 시각을 기준으로 한다.
  */
 class DoorPatternDetector(config: DetectionConfig = DetectionConfig()) : DwellBasedDetector(config) {
     override val id = SourceId("detect.door", "기어 P + 문 닫힘 유지")
-    override val priority = 2
+    override val priority = 1
     override val requiredSignals = setOf(VehicleSignal.GEAR, VehicleSignal.DOOR_OPEN)
     override val confidence = Confidence.MEDIUM
 
@@ -101,9 +104,14 @@ class DoorPatternDetector(config: DetectionConfig = DetectionConfig()) : DwellBa
     private var closedSinceMs: Long? = 0L // 0 = 처음부터 닫혀 있었음 → P단 시각이 기준이 됨
     override fun conditionSince() = if (doorOpen) null else closedSinceMs
     override fun handleExtra(event: VehicleEvent) {
-        if (event is VehicleEvent.DoorChanged) {
-            doorOpen = event.anyOpen
-            closedSinceMs = if (event.anyOpen) null else event.timestampMs
+        if (event !is VehicleEvent.DoorChanged) return
+        // 문 4개의 알림이 따로 오므로 "닫힘" 알림이 반복될 수 있다. 열림 → 닫힘으로 바뀔 때만 기준 시각을 갱신한다.
+        if (event.anyOpen) {
+            doorOpen = true
+            closedSinceMs = null
+        } else if (doorOpen) {
+            doorOpen = false
+            closedSinceMs = event.timestampMs
         }
     }
 }
@@ -126,5 +134,5 @@ class ManualSessionDetector : SessionDetector {
 
 fun sessionDetectorSelector(config: DetectionConfig = DetectionConfig()) = StrategySelector(
     category = "차박 감지",
-    strategies = listOf(SeatOccupancyDetector(config), DoorPatternDetector(config), ManualSessionDetector()),
+    strategies = listOf(DoorPatternDetector(config), SeatOccupancyDetector(config), ManualSessionDetector()),
 )

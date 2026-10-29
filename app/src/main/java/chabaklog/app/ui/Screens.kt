@@ -15,58 +15,81 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import chabaklog.app.data.PlaceKind
 import chabaklog.app.data.SessionEntity
+import chabaklog.app.tracking.LiveState
+import chabaklog.app.tracking.Phase
+import chabaklog.datasource.vehicle.Gear
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
- * 화면 구조 (기획서 기준)
- * - 홈: 지금 상태(차량 연결, 차박 세션 진행 여부)와 오늘 밤 예상 소모
- * - 지도: 공공 캠핑장 + 시드(시연용 명시) + 내 기록, 장소 카드와 필터
- * - 기록: 지난 차박 세션 목록
+ * 화면 구조
+ * - 홈: 지금 상태(단계·차량 값), 차박 세션 진행, 시연 모드
+ * - 지도: 공공 캠핑장 + 시드(시연용 명시) + 내 기록 (3단계)
+ * - 기록: 지난 차박 세션
  * - 아침 요약: 어젯밤 소모량·주차 난이도
- * - 설정 > 데이터 출처: 지금 어떤 경로로 데이터를 받는지
- * 주행 중(CarUxRestrictions)에는 간소화 화면으로 바꾼다 (2단계).
+ * - 데이터 출처: 지금 어떤 경로로 데이터를 받는지 + 1단계 연결 시험
+ * 주행 중(CarUxRestrictions)에는 간소화 화면만 보여 준다.
  */
 enum class Tab(val label: String) { HOME("홈"), MAP("지도"), LOG("기록"), MORNING("아침 요약"), SOURCES("데이터 출처") }
+
+/** 2560×1440 차량 화면에서 글씨가 작아 전체 배율을 키운다 (1단계 확인) */
+private const val CAR_SCALE = 1.6f
 
 @Composable
 fun ChabaklogRoot(viewModel: MainViewModel, testViewModel: ConnectionTestViewModel) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        Surface(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxSize()) {
-                NavigationRail(Modifier.width(120.dp)) {
-                    Tab.entries.forEach { t ->
-                        NavigationRailItem(
-                            selected = tab == t,
-                            onClick = { tab = t },
-                            icon = {},
-                            label = { Text(t.label, fontSize = 18.sp) },
-                        )
-                    }
+    val live by viewModel.live.collectAsStateWithLifecycle()
+    val base = LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides Density(base.density * CAR_SCALE, base.fontScale)) {
+        MaterialTheme(colorScheme = darkColorScheme()) {
+            Surface(Modifier.fillMaxSize()) {
+                if (live.restricted) {
+                    DrivingScreen(live)
+                    return@Surface
                 }
-                Column(Modifier.fillMaxSize().padding(32.dp)) {
-                    when (tab) {
-                        Tab.HOME -> HomeScreen()
-                        Tab.MAP -> MapScreen(viewModel)
-                        Tab.LOG -> LogScreen(viewModel)
-                        Tab.MORNING -> MorningScreen(viewModel)
-                        Tab.SOURCES -> SourcesScreen(testViewModel)
+                Row(Modifier.fillMaxSize()) {
+                    NavigationRail(Modifier.width(110.dp)) {
+                        Tab.entries.forEach { t ->
+                            NavigationRailItem(
+                                selected = tab == t,
+                                onClick = { tab = t },
+                                icon = {},
+                                label = { Text(t.label, fontSize = 15.sp) },
+                            )
+                        }
+                    }
+                    Column(Modifier.fillMaxSize().padding(24.dp)) {
+                        when (tab) {
+                            Tab.HOME -> HomeScreen(viewModel, live)
+                            Tab.MAP -> MapScreen(viewModel)
+                            Tab.LOG -> LogScreen(viewModel)
+                            Tab.MORNING -> MorningScreen(viewModel)
+                            Tab.SOURCES -> SourcesScreen(viewModel, live, testViewModel)
+                        }
                     }
                 }
             }
@@ -74,29 +97,130 @@ fun ChabaklogRoot(viewModel: MainViewModel, testViewModel: ConnectionTestViewMod
     }
 }
 
+// ---------- 공통 ----------
+
 @Composable
 private fun Title(text: String) {
     Text(text, style = MaterialTheme.typography.headlineMedium)
-    Spacer(Modifier.padding(8.dp))
+    Spacer(Modifier.padding(6.dp))
 }
 
 @Composable
-private fun InfoCard(title: String, body: String) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge)
+private fun InfoCard(title: String, body: String, modifier: Modifier = Modifier.fillMaxWidth()) {
+    Card(modifier.padding(vertical = 6.dp)) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
             Text(body, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
 
 @Composable
-private fun HomeScreen() {
-    Title("차박로그")
-    InfoCard("차량 연결", "2단계에서 연결: Vehicle SDK + CarPropertyManager")
-    InfoCard("차박 세션", "P단 + 시간 + 도어 패턴으로 자동 감지 (수동 시작 버튼은 최후 대체)")
-    InfoCard("오늘 밤 예상 소모", "3단계에서 연결: 내 기록 + 외기 온도")
+private fun Stat(label: String, value: String, modifier: Modifier) {
+    Card(modifier.padding(4.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            Text(label, style = MaterialTheme.typography.labelLarge)
+            Text(value, style = MaterialTheme.typography.titleLarge)
+        }
+    }
 }
+
+private val timeFormat = SimpleDateFormat("M/d HH:mm", Locale.KOREA)
+private fun Long.time() = timeFormat.format(Date(this))
+private fun Float.pct() = "${roundToInt()}%"
+private fun Gear?.korean() = when (this) {
+    Gear.PARK -> "P"; Gear.REVERSE -> "R"; Gear.NEUTRAL -> "N"; Gear.DRIVE -> "D"; else -> "-"
+}
+private fun minutes(ms: Long) = (ms / 60_000).let { if (it >= 60) "${it / 60}시간 ${it % 60}분" else "${it}분" }
+
+// ---------- 주행 중 간소화 ----------
+
+@Composable
+private fun DrivingScreen(live: LiveState) {
+    Column(
+        Modifier.fillMaxSize().padding(48.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("주행 중", style = MaterialTheme.typography.displaySmall)
+        Spacer(Modifier.padding(12.dp))
+        Text("차박로그가 주차를 기다리고 있어요", style = MaterialTheme.typography.headlineSmall)
+        live.socPercent?.let {
+            Spacer(Modifier.padding(12.dp))
+            Text("배터리 ${it.pct()}", style = MaterialTheme.typography.headlineMedium)
+        }
+    }
+}
+
+// ---------- 홈 ----------
+
+@Composable
+private fun HomeScreen(viewModel: MainViewModel, live: LiveState) {
+    val demo by viewModel.demoMode.collectAsStateWithLifecycle()
+    // 정차 경과 시간을 화면에서 갱신하기 위한 시계
+    val now by produceState(System.currentTimeMillis()) {
+        while (true) { delay(10_000); value = System.currentTimeMillis() }
+    }
+    LazyColumn {
+        item {
+            Column {
+                Title("차박로그")
+                Text(live.phase.label, style = MaterialTheme.typography.displaySmall)
+                Spacer(Modifier.padding(6.dp))
+                val sub = when {
+                    live.sessionStartedMs != null -> "${live.sessionStartedMs.time()}부터 기록 중"
+                    live.parkedSinceMs != null ->
+                        "정차 ${minutes(now - live.parkedSinceMs)} · ${minutes(live.dwellMs)} 머무르면 차박으로 기록"
+                    live.phase == Phase.PARKING_MANEUVER -> "후진 ${live.reverseCountLive}회"
+                    else -> ""
+                }
+                if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.padding(8.dp))
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth()) {
+                val w = Modifier.weight(1f)
+                Stat("기어", live.gear.korean(), w)
+                Stat("배터리", live.socPercent?.pct() ?: "-", w)
+                Stat("문", when (live.doorOpen) { true -> "열림"; false -> "닫힘"; null -> "-" }, w)
+                Stat("공조", when (live.hvacOn) { true -> "켜짐"; false -> "꺼짐"; null -> "-" }, w)
+                Stat("외기", live.outsideTempC?.let { "${"%.1f".format(it)}°" } ?: "-", w)
+            }
+        }
+        live.lastParking?.let { p ->
+            item {
+                InfoCard(
+                    "방금 주차",
+                    "후진 ${p.reverseCount}회" + (p.fullLockCount?.let { " · 핸들 끝까지 ${it}회" } ?: "") +
+                        " · ${minutes(p.durationMs)}",
+                )
+            }
+        }
+        if (live.manualMode) {
+            item {
+                Column {
+                    InfoCard("직접 기록", "이 차에서는 자동 감지에 필요한 신호를 읽을 수 없어 직접 시작·종료합니다.")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = viewModel::manualStart, enabled = live.sessionId == null) { Text("차박 시작") }
+                        OutlinedButton(onClick = viewModel::manualEnd, enabled = live.sessionId != null) { Text("차박 끝") }
+                    }
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("시연 모드", style = MaterialTheme.typography.titleMedium)
+                    Text("차박 감지 대기 시간을 30분 → 1분으로 줄입니다", style = MaterialTheme.typography.bodyMedium)
+                }
+                Switch(checked = demo, onCheckedChange = viewModel::setDemoMode)
+            }
+        }
+    }
+}
+
+// ---------- 지도 ----------
 
 @Composable
 private fun MapScreen(viewModel: MainViewModel) {
@@ -116,6 +240,8 @@ private fun MapScreen(viewModel: MainViewModel) {
     }
 }
 
+// ---------- 기록 ----------
+
 @Composable
 private fun LogScreen(viewModel: MainViewModel) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
@@ -125,18 +251,80 @@ private fun LogScreen(viewModel: MainViewModel) {
 }
 
 @Composable
+private fun SessionCard(s: SessionEntity) {
+    val range = "${s.startedAtMs.time()} ~ ${s.endedAtMs?.time() ?: "진행 중"}"
+    val soc = if (s.socStart != null && s.socEnd != null) "배터리 ${s.socStart.pct()} → ${s.socEnd.pct()}" else "배터리 기록 없음"
+    InfoCard(range, "$soc · 주차 ${s.parkingLevel ?: "-"} · 문 열림 ${s.doorOpenCount}회 · 공조 ${s.hvacOnMinutes}분")
+}
+
+// ---------- 아침 요약 ----------
+
+@Composable
 private fun MorningScreen(viewModel: MainViewModel) {
     val latest by viewModel.latest.collectAsStateWithLifecycle()
     Title("아침 요약")
-    latest?.let { SessionCard(it) } ?: Text("어젯밤 기록이 없습니다.")
+    val s = latest ?: run { Text("어젯밤 기록이 없습니다."); return }
+    val end = s.endedAtMs ?: System.currentTimeMillis()
+    val used = if (s.socStart != null && s.socEnd != null) s.socStart - s.socEnd else null
+    LazyColumn {
+        item {
+            Column {
+                Text(
+                    used?.let { "어젯밤 배터리 ${"%.0f".format(it)}% 사용" } ?: "배터리 변화 기록 없음",
+                    style = MaterialTheme.typography.displaySmall,
+                )
+                Text(
+                    "${s.startedAtMs.time()} ~ ${s.endedAtMs?.time() ?: "진행 중"} (${minutes(end - s.startedAtMs)})",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.padding(8.dp))
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth()) {
+                val w = Modifier.weight(1f)
+                Stat("배터리", "${s.socStart?.pct() ?: "-"} → ${s.socEnd?.pct() ?: "-"}", w)
+                Stat("공조 사용", "${s.hvacOnMinutes}분", w)
+                Stat("문 열림", "${s.doorOpenCount}회", w)
+                Stat("외기", s.outsideTempC?.let { "${"%.1f".format(it)}°" } ?: "-", w)
+            }
+        }
+        item {
+            InfoCard(
+                "주차 난이도: ${s.parkingLevel ?: "기록 없음"}",
+                "후진 ${s.reverseCount}회 · 핸들 끝까지 ${s.fullLockCount}회",
+            )
+        }
+        item {
+            InfoCard(
+                "데이터 출처",
+                listOfNotNull(
+                    s.locationSource?.let { "위치: $it" },
+                    s.outsideTempSource?.let { "외기: $it" },
+                    "감지: ${s.detectorId} (${s.confidence})",
+                ).joinToString(" · "),
+            )
+        }
+    }
 }
 
+// ---------- 데이터 출처 ----------
+
 @Composable
-private fun SourcesScreen(test: ConnectionTestViewModel) {
+private fun SourcesScreen(viewModel: MainViewModel, live: LiveState, test: ConnectionTestViewModel) {
     val locations by test.locations.collectAsStateWithLifecycle()
     val log by test.log.collectAsStateWithLifecycle()
     LazyColumn {
-        item { SourcesSummary() }
+        item {
+            Column {
+                Title("데이터 출처")
+                Text("지금 이 차에서 실제로 쓰고 있는 경로입니다.", style = MaterialTheme.typography.bodyLarge)
+                OutlinedButton(onClick = viewModel::refreshSources) { Text("다시 확인") }
+            }
+        }
+        items(live.sources) { row ->
+            InfoCard(row.category, (row.active?.label ?: "없음") + (row.note?.let { " · $it" } ?: ""))
+        }
         item {
             Column {
                 Spacer(Modifier.padding(8.dp))
@@ -149,42 +337,17 @@ private fun SourcesScreen(test: ConnectionTestViewModel) {
         }
         items(locations) { InfoCard(it.path, it.result) }
         item {
-          Column {
-            Text("NaviHelper 목적지·경유지", style = MaterialTheme.typography.titleLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { test.setDestination() }) { Text("목적지 설정") }
-                Button(onClick = { test.addWaypoint() }) { Text("경유지 추가") }
-                Button(onClick = { test.readWaypoints() }) { Text("경유지 조회") }
-                Button(onClick = { test.removeWaypoints() }) { Text("경유지 삭제") }
-                Button(onClick = { test.cancelRoute() }) { Text("경로 취소") }
+            Column {
+                Text("NaviHelper 목적지·경유지", style = MaterialTheme.typography.titleLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { test.setDestination() }) { Text("목적지") }
+                    Button(onClick = { test.addWaypoint() }) { Text("경유지 추가") }
+                    Button(onClick = { test.readWaypoints() }) { Text("조회") }
+                    Button(onClick = { test.removeWaypoints() }) { Text("경유지 삭제") }
+                    Button(onClick = { test.cancelRoute() }) { Text("경로 취소") }
+                }
             }
-          }
         }
         items(log) { Text(it, style = MaterialTheme.typography.bodyMedium) }
     }
-}
-
-@Composable
-private fun SourcesSummary() = Column {
-    Title("데이터 출처")
-    // 2단계에서 DataSourceRegistry.report()로 교체
-    listOf(
-        "위치" to "AAOS 위치 → 내비 목적지 → 지도에서 직접 선택",
-        "외기 온도" to "차량 외기온 → 날씨 API → 내장 월별 평균",
-        "차박 감지" to "P + 시간 + 도어 패턴 (좌석 점유는 보조)",
-        "주차 난이도" to "후진 횟수 + 조향 끝까지 돌린 횟수",
-    ).forEach { (k, v) -> InfoCard(k, v) }
-}
-
-private val timeFormat = SimpleDateFormat("M/d HH:mm", Locale.KOREA)
-
-@Composable
-private fun SessionCard(s: SessionEntity) {
-    val range = buildString {
-        append(timeFormat.format(Date(s.startedAtMs)))
-        append(" ~ ")
-        append(s.endedAtMs?.let { timeFormat.format(Date(it)) } ?: "진행 중")
-    }
-    val soc = if (s.socStart != null && s.socEnd != null) "배터리 ${s.socStart}% → ${s.socEnd}%" else "배터리 기록 없음"
-    InfoCard(range, "$soc · 주차 ${s.parkingLevel ?: "-"} · 감지 ${s.detectorId}(${s.confidence})")
 }

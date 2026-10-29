@@ -18,8 +18,12 @@ interface SessionDao {
     @Query("SELECT * FROM sessions ORDER BY startedAtMs DESC")
     fun observeAll(): Flow<List<SessionEntity>>
 
-    @Query("SELECT * FROM sessions ORDER BY startedAtMs DESC LIMIT 1")
-    fun observeLatest(): Flow<SessionEntity?>
+    /** 아침 요약용: 가장 최근에 "끝난" 세션 (진행 중인 세션은 제외) */
+    @Query("SELECT * FROM sessions WHERE endedAtMs IS NOT NULL ORDER BY startedAtMs DESC LIMIT 1")
+    fun observeLatestEnded(): Flow<SessionEntity?>
+
+    @Query("SELECT * FROM sessions WHERE id = :id")
+    suspend fun byId(id: Long): SessionEntity?
 
     @Query("SELECT * FROM sessions WHERE endedAtMs IS NULL ORDER BY startedAtMs DESC LIMIT 1")
     suspend fun openSession(): SessionEntity?

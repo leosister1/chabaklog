@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  */
 class ConnectionTestViewModel(app: ChabaklogApp) : ViewModel() {
     private val aaos = AaosLocationProvider(app)
-    val navi = NaviHelperGateway(app).also { it.connect() }
+    private val navi: NaviHelperGateway = app.navi
 
     data class LocationRow(val path: String, val result: String)
 
@@ -57,8 +57,6 @@ class ConnectionTestViewModel(app: ChabaklogApp) : ViewModel() {
     fun readWaypoints() = viewModelScope.launch { navi.waypoints() }
     fun removeWaypoints() = navi.removeAllWaypoints()
     fun cancelRoute() = navi.cancelRoute()
-
-    override fun onCleared() { navi.release(); super.onCleared() }
 
     private fun GeoPoint.fmt() = "%.5f, %.5f".format(latitude, longitude)
 

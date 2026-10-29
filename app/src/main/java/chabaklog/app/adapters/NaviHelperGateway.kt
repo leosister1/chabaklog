@@ -16,6 +16,7 @@ import android.util.Log
 import chabaklog.datasource.core.Availability
 import chabaklog.datasource.location.GeoPoint
 import chabaklog.datasource.location.NaviDestinationProvider
+import chabaklog.datasource.location.NaviLocationProvider
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,7 +31,7 @@ data class NaviPlace(val name: String, val latitude: Double, val longitude: Doub
  * - requestRoute() 성공 = 경로 탐색 완료가 아니다. onRoutingCompleted / onError로 최종 결과를 본다.
  * - 경유지는 최대 2개 (WaypointIndex.FIRST / SECOND).
  */
-class NaviHelperGateway(context: Context) : NaviDestinationProvider {
+class NaviHelperGateway(context: Context) : NaviDestinationProvider, NaviLocationProvider {
     private val tag = "CHABAK_NAVI"
     private val navi = NaviHelper(context.applicationContext)
 
@@ -110,7 +111,8 @@ class NaviHelperGateway(context: Context) : NaviDestinationProvider {
 
     // ---------- 조회 ----------
 
-    suspend fun currentLocation(): GeoPoint? =
+    /** 위치 1순위 (NaviLocationProvider) */
+    override suspend fun currentLocation(): GeoPoint? =
         request<CurrentLocationInfo>(3_000, { pendingLocation = it }) { navi.getCurrentLocationInfo() }
             ?.let { GeoPoint(it.latitude, it.longitude) }
 

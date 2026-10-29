@@ -8,6 +8,7 @@ import chabaklog.datasource.detection.sessionDetectorSelector
 import chabaklog.datasource.location.GeoPoint
 import chabaklog.datasource.location.ManualPickSource
 import chabaklog.datasource.location.NaviDestinationProvider
+import chabaklog.datasource.location.NaviLocationProvider
 import chabaklog.datasource.location.PlatformLocationProvider
 import chabaklog.datasource.location.locationChain
 import chabaklog.datasource.parking.ParkingConfig
@@ -30,6 +31,7 @@ data class SourceReportRow(val category: String, val active: SourceId?, val note
  */
 class DataSourceRegistry(
     private val vehicle: VehicleGateway,
+    naviLocation: NaviLocationProvider,
     platformLocation: PlatformLocationProvider,
     navi: NaviDestinationProvider,
     weather: WeatherClient,
@@ -40,7 +42,7 @@ class DataSourceRegistry(
 ) {
     val manualLocation = ManualPickSource()
 
-    val location: FallbackChain<GeoPoint> = locationChain(platformLocation, navi, manualLocation)
+    val location: FallbackChain<GeoPoint> = locationChain(naviLocation, platformLocation, navi, manualLocation)
 
     val temperature: FallbackChain<Celsius> = temperatureChain(
         vehicle = vehicle,
