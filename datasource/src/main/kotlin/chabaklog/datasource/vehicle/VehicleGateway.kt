@@ -11,6 +11,8 @@ enum class VehicleSignal {
     HVAC_POWER,
     STEERING_ANGLE,
     OUTSIDE_TEMPERATURE,
+    /** 충전 중(충전 스위치 켜짐 또는 충전구 열림). 충전 대기를 차박으로 잘못 세지 않기 위해 쓴다. */
+    CHARGING,
 }
 
 enum class Gear { PARK, REVERSE, NEUTRAL, DRIVE, UNKNOWN }
@@ -28,6 +30,7 @@ sealed interface VehicleEvent {
     data class HvacPowerChanged(val on: Boolean, override val timestampMs: Long) : VehicleEvent
     data class SteeringAngleChanged(val degrees: Float, override val timestampMs: Long) : VehicleEvent
     data class OutsideTemperatureChanged(val celsius: Float, override val timestampMs: Long) : VehicleEvent
+    data class ChargingChanged(val charging: Boolean, override val timestampMs: Long) : VehicleEvent
 }
 
 fun interface Subscription {

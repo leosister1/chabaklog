@@ -47,6 +47,9 @@ class AssetClimateTable(context: Context) : ClimateTable {
     }
 
     fun nearestStationName(at: GeoPoint): String = stations.minBy { distanceMeters(it.point, at) }.name
+
+    /** 데이터 출처 화면용 지점 수 */
+    val stationCount get() = stations.size
 }
 
 /** 지도 윤곽 (Natural Earth 1:50m, 남한). [경도, 위도] 링 목록 */
@@ -109,4 +112,43 @@ class ToiletIndex(context: Context) {
     }
 
     fun near(campName: String): List<NearbyToilet> = byCamp[campName].orEmpty()
+
+    /** 데이터 출처 화면용 전체 개수 */
+    val count get() = byCamp.values.sumOf { it.size }
+}
+
+/** 경유지 후보 종류 (assets/pois_near_campsites.json의 kind) */
+enum class PoiKind(val key: String, val label: String, val title: String) {
+    CONVENIENCE("convenience", "편의점", "가는 길 편의점"),
+    SUPERMARKET("supermarket", "마트", "장보기 마트"),
+    CHARGING("charging", "전기차 충전소", "근처 전기차 충전소"),
+}
+
+/**
+ * 캠핑장 근처 편의점·마트·전기차 충전소 (OpenStreetMap, 캠핑장 반경 5 km, 편의점 3·마트 2·충전소 2곳).
+ * 화장실과 같은 NearbyToilet 모양으로 돌려줘 경유지 넣기 흐름을 그대로 쓴다.
+ */
+class PoiIndex(context: Context) {
+    private val byCampKind: Map<Pair<String, String>, List<NearbyToilet>> = run {
+        val arr = JSONObject(context.readAsset("pois_near_campsites.json")).getJSONArray("pois")
+        (0 until arr.length()).map { arr.getJSONObject(it) }.groupBy(
+            keySelector = { it.getString("camp") to it.getString("kind") },
+            valueTransform = {
+                val kind = PoiKind.entries.firstOrNull { k -> k.key == it.getString("kind") }
+                NearbyToilet(
+                    name = it.getString("name"),
+                    kind = kind?.label ?: it.getString("kind"),
+                    address = "",
+                    openHours = it.optString("open").let { o -> if (o == "24/7") "24시간" else o },
+                    point = GeoPoint(it.getDouble("lat"), it.getDouble("lon")),
+                    distanceM = it.getInt("distanceM"),
+                )
+            },
+        ).mapValues { (_, v) -> v.sortedBy { it.distanceM } }
+    }
+
+    fun near(campName: String, kind: PoiKind): List<NearbyToilet> = byCampKind[campName to kind.key].orEmpty()
+
+    /** 데이터 출처 화면용 종류별 개수 */
+    fun count(kind: PoiKind): Int = byCampKind.filterKeys { it.second == kind.key }.values.sumOf { it.size }
 }

@@ -32,7 +32,24 @@ data class SessionEntity(
     val parkingLevel: String? = null,
     /** 시연용으로 넣은 기록. 화면에 "시연용"으로 표시하고 예측에는 쓰지 않는다. */
     val isDemo: Boolean = false,
-)
+    /**
+     * 끝날 때 내린 최종 판단 (SessionVerdict 이름): PENDING(진행 중) / CAMPING / REST(휴식) / ASK(사용자 확인 필요).
+     * 지도·예측에는 CAMPING만 쓴다.
+     */
+    val verdict: String = "PENDING",
+    /** 사용자가 차박 모드로 직접 기록했는지 (자동 감지가 시작한 뒤 켠 경우도 포함) */
+    val manual: Boolean = false,
+    /** 기록 중 마지막으로 값을 저장한 시각 (30초마다). 앱이 기록 도중 꺼졌을 때 끝 시각을 정하는 데 쓴다. */
+    val lastSeenAtMs: Long? = null,
+    /** 여정: 출발(P에서 벗어남)부터 이 기록이 시작될 때까지 달린 거리(km, 누적 주행거리 차이) */
+    val tripDistanceKm: Float? = null,
+    /** 여정: 출발 시각 */
+    val tripStartedAtMs: Long? = null,
+    /** 여정: 가는 길에 내비가 도착을 알린 경유지·목적지 이름 ("|"로 구분) */
+    val tripStops: String? = null,
+) {
+    val isCamping get() = verdict == "CAMPING"
+}
 
 enum class PlaceKind { PUBLIC_CAMPSITE, DEMO_SEED, MINE }
 

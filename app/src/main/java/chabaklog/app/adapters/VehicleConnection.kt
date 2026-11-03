@@ -35,6 +35,31 @@ class VehicleConnection(context: Context) {
         connected = true
     }
 
+    /**
+     * 배터리 용량(kWh). AAOS 표준 INFO_EV_BATTERY_CAPACITY(Wh, 권한 android.car.permission.CAR_INFO).
+     * 차가 알려주지 않으면 null → 예측은 기준 용량으로 계산한다.
+     */
+    fun batteryCapacityKwh(): Float? = try {
+        (properties?.getProperty<Any>(android.car.VehiclePropertyIds.INFO_EV_BATTERY_CAPACITY, 0)?.value as? Float)
+            ?.div(1000f)?.takeIf { it in 10f..250f }
+    } catch (e: Exception) {
+        Log.w(TAG, "배터리 용량 조회 실패: ${e.message}"); null
+    }
+
+    /** 누적 주행거리(km). Vehicle SDK Odometer.getCurrentDistanceDriven (권한 pleos CAR_DRIVE). 못 읽으면 null */
+    suspend fun odometerKm(): Float? = kotlinx.coroutines.withTimeoutOrNull(3_000) {
+        kotlinx.coroutines.suspendCancellableCoroutine<Float?> { cont ->
+            try {
+                vehicle.getOdometer().getCurrentDistanceDriven(
+                    { v -> if (cont.isActive) cont.resumeWith(Result.success(v)) },
+                    { e -> Log.w(TAG, "주행거리 조회 실패: ${e.message}"); if (cont.isActive) cont.resumeWith(Result.success(null)) },
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "주행거리 조회 예외: ${e.message}"); if (cont.isActive) cont.resumeWith(Result.success(null))
+            }
+        }
+    }
+
     fun gateway(quirks: VehicleQuirks = VehicleQuirks()): PleosVehicleGateway =
         PleosVehicleGateway(PleosBindingFactory(vehicle, properties, quirks).all())
 

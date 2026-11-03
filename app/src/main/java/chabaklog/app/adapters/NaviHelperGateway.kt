@@ -3,11 +3,15 @@ package chabaklog.app.adapters
 import ai.pleos.playground.navi.constants.NaviErrorCode
 import ai.pleos.playground.navi.constants.WaypointIndex
 import ai.pleos.playground.navi.data.CurrentLocationInfo
+import ai.pleos.playground.navi.data.DestinationArrivedInfo
+import ai.pleos.playground.navi.data.WaypointArrivedInfo
 import ai.pleos.playground.navi.data.DestinationInfo
 import ai.pleos.playground.navi.data.RequestWaypointInfo
 import ai.pleos.playground.navi.data.RouteInfo
 import ai.pleos.playground.navi.data.RouteStartInfo
 import ai.pleos.playground.navi.data.RouteWithWaypointsRequest
+import ai.pleos.playground.navi.data.TripInfo
+import ai.pleos.playground.navi.data.TripRequest
 import ai.pleos.playground.navi.data.WaypointChangedInfo
 import ai.pleos.playground.navi.data.WaypointInfo
 import ai.pleos.playground.navi.helper.NaviHelper
@@ -42,12 +46,20 @@ class NaviHelperGateway(context: Context) : NaviDestinationProvider, NaviLocatio
     private var pendingLocation: CompletableDeferred<CurrentLocationInfo>? = null
     private var pendingDestination: CompletableDeferred<DestinationInfo>? = null
     private var pendingWaypoints: CompletableDeferred<List<WaypointInfo>>? = null
+    private var pendingTrip: CompletableDeferred<TripInfo>? = null
 
     private val _events = MutableSharedFlow<String>(replay = 50, extraBufferCapacity = 50)
     /** 화면에 보여줄 이벤트 기록 */
     val events: SharedFlow<String> = _events
 
     private fun emit(msg: String) { Log.i(tag, msg); _events.tryEmit(msg) }
+
+    /** 여정: 내비가 도착을 알린 경유지·목적지 (시각, 이름) */
+    private val arrivals = java.util.concurrent.CopyOnWriteArrayList<Pair<Long, String>>()
+
+    /** sinceMs 이후 도착한 곳 이름 (중복 제거, 순서 유지) */
+    fun arrivalsSince(sinceMs: Long): List<String> =
+        arrivals.filter { it.first >= sinceMs }.map { it.second }.filter { it.isNotBlank() }.distinct()
 
     private val listener = object : NaviHelperEventListener {
         override fun onCurrentLocationInfo(currentLocationInfo: CurrentLocationInfo) {
@@ -68,6 +80,18 @@ class NaviHelperGateway(context: Context) : NaviDestinationProvider, NaviLocatio
         override fun onDestinationChanged() = emit("onDestinationChanged")
         override fun onWaypointChanged(waypointChangedInfo: WaypointChangedInfo) = emit("onWaypointChanged $waypointChangedInfo")
         override fun onError(errorCode: NaviErrorCode) = emit("onError $errorCode")
+        override fun onWayPointArrived(waypointArrivedInfo: WaypointArrivedInfo) {
+            emit("onWayPointArrived ${waypointArrivedInfo.name}")
+            arrivals += System.currentTimeMillis() to waypointArrivedInfo.name
+        }
+        override fun onDestinationArrived(destinationArrivedInfo: DestinationArrivedInfo) {
+            emit("onDestinationArrived ${destinationArrivedInfo.name}")
+            arrivals += System.currentTimeMillis() to destinationArrivedInfo.name
+        }
+        override fun onTripInfo(tripInfo: TripInfo) {
+            emit("onTripInfo ${tripInfo.distance}m ${tripInfo.eta}s 도착 SOC ${tripInfo.estimatedSocAtDest}% ${tripInfo.energyConsumption}Wh")
+            pendingTrip?.complete(tripInfo)
+        }
     }
 
     fun connect() {
@@ -96,6 +120,9 @@ class NaviHelperGateway(context: Context) : NaviDestinationProvider, NaviLocatio
         try { navi.removeListener(listener); navi.release() } catch (_: Exception) {}
     }
 
+    /** 데이터 출처 화면용: true 연결됨, false 연결 안 됨, null 확인 중 */
+    val isConnected: Boolean? get() = connected
+
     private suspend fun awaitConnected(): Boolean =
         connected ?: (withTimeoutOrNull(5_000) { connectedSignal.await() } ?: false)
 
@@ -122,6 +149,15 @@ class NaviHelperGateway(context: Context) : NaviDestinationProvider, NaviLocatio
 
     suspend fun waypoints(): List<WaypointInfo>? =
         request<List<WaypointInfo>>(3_000, { pendingWaypoints = it }) { navi.getWaypointInfo() }
+
+    /**
+     * 지금 위치에서 이 장소까지 가는 경로 정보(거리·시간·도착 시 예상 배터리). 경로 안내를 시작하지 않는다.
+     * requestTrip → onTripInfo. 내비가 답하지 않으면 null.
+     */
+    suspend fun trip(place: NaviPlace): TripInfo? =
+        request<TripInfo>(10_000, { pendingTrip = it }) {
+            navi.requestTrip(TripRequest(place.latitude, place.longitude, place.poiId, place.name, null))
+        }
 
     // ---------- NaviDestinationProvider (위치 2순위) ----------
 

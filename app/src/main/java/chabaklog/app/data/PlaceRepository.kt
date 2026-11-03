@@ -66,6 +66,7 @@ class PlaceRepository(private val context: Context, private val db: ChabaklogDat
                     reverseCount = d.reverses,
                     parkingLevel = d.level,
                     isDemo = true,
+                    verdict = "CAMPING",
                 )
             )
         }

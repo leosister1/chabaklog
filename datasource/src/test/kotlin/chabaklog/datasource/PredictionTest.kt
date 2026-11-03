@@ -43,4 +43,20 @@ class PredictionTest {
         val r = p.predict(listOf(NightRecord(0.2f, 5f, 10f), NightRecord(8f, 8f, null)), tonightTempC = 18f)
         assertEquals(PredictionBasis.DEFAULT, r.basis)
     }
+
+    @Test fun `기록이 없을 때 배터리가 작은 차는 같은 밤에 더 많이 쓴다`() {
+        val big = p.predict(emptyList(), tonightTempC = 20f, batteryKwh = 77.4f)
+        val small = p.predict(emptyList(), tonightTempC = 20f, batteryKwh = 38.7f)
+        assertEquals(6f, big.socUsedPercent)
+        assertEquals(12f, small.socUsedPercent, "용량 절반이면 % 소모는 두 배")
+        assertEquals(38.7f, small.batteryKwhAdjusted)
+    }
+
+    @Test fun `내 기록이 있으면 배터리 용량 보정을 하지 않는다`() {
+        val records = listOf(NightRecord(10f, 8f, 10f))
+        val a = p.predict(records, tonightTempC = 10f)
+        val b = p.predict(records, tonightTempC = 10f, batteryKwh = 38.7f)
+        assertEquals(a.socUsedPercent, b.socUsedPercent)
+        assertEquals(null, b.batteryKwhAdjusted)
+    }
 }

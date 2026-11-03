@@ -76,6 +76,8 @@ fun MapScreen(viewModel: MainViewModel) {
     val filters by viewModel.filters.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
     val forecast by viewModel.selectedForecast.collectAsStateWithLifecycle()
+    val trip by viewModel.selectedTrip.collectAsStateWithLifecycle()
+    val tripLoaded by viewModel.tripLoaded.collectAsStateWithLifecycle()
     val vehicle by viewModel.vehiclePoint.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
 
@@ -173,13 +175,19 @@ fun MapScreen(viewModel: MainViewModel) {
                 Text("표시 중 ${visible.size}곳 · 기록 있는 곳 ${visible.count { it.hasRecords }}곳")
                 return@Column
             }
-            PlaceCard(s, forecast, viewModel)
+            PlaceCard(s, forecast, trip, tripLoaded, viewModel)
         }
     }
 }
 
 @Composable
-private fun PlaceCard(s: PlaceSummary, forecast: chabaklog.app.tracking.Forecast?, viewModel: MainViewModel) {
+private fun PlaceCard(
+    s: PlaceSummary,
+    forecast: chabaklog.app.tracking.Forecast?,
+    trip: TripEstimate?,
+    tripLoaded: Boolean,
+    viewModel: MainViewModel,
+) {
     val p = s.place
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -195,11 +203,18 @@ private fun PlaceCard(s: PlaceSummary, forecast: chabaklog.app.tracking.Forecast
             Text("오늘 밤 예상 배터리 사용", style = MaterialTheme.typography.titleSmall)
             if (forecast == null) Text("계산 중…") else {
                 val pr = forecast.prediction
-                Text("약 ${pr.socUsedPercent.roundToInt()}% (${pr.hours.roundToInt()}시간 기준)", style = MaterialTheme.typography.headlineSmall)
+                Text("약 ${forecast.totalSocPercent.roundToInt()}% (${pr.hours.roundToInt()}시간 기준)", style = MaterialTheme.typography.headlineSmall)
+                if (forecast.v2l.appliances.isNotEmpty()) {
+                    Text("차박 ${pr.socUsedPercent.roundToInt()}% + V2L ${"%.1f".format(forecast.v2l.socPercent)}% (${forecast.v2l.appliances.joinToString { it.label }})",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                pr.batteryKwhAdjusted?.let { Text("내 차 배터리 ${it.roundToInt()}kWh 기준으로 보정", style = MaterialTheme.typography.bodySmall) }
                 Text("기온 ${"%.1f".format(pr.tempC)}° · ${forecast.tempSource}", style = MaterialTheme.typography.bodySmall)
                 Text("소모율 시간당 ${"%.1f".format(pr.ratePerHour)}% · ${pr.basis.label}" +
                     if (pr.sampleCount > 0) " (${pr.sampleCount}건)" else "", style = MaterialTheme.typography.bodySmall)
             }
+
+            ArrivalPlan(trip, tripLoaded, forecast)
 
             Text("주차 난이도: ${s.parkingLevel ?: "기록 없음"}", style = MaterialTheme.typography.titleSmall)
             val records = buildString {
@@ -229,8 +244,65 @@ private fun PlaceCard(s: PlaceSummary, forecast: chabaklog.app.tracking.Forecast
             } else if (p.kind == PlaceKind.PUBLIC_CAMPSITE) {
                 Text("근처 화장실 정보 없음", style = MaterialTheme.typography.bodySmall)
             }
+            if (p.kind == PlaceKind.PUBLIC_CAMPSITE) {
+                var anyPoi = false
+                chabaklog.app.data.PoiKind.entries.forEach { kind ->
+                    val list = viewModel.poisNear(p, kind)
+                    if (list.isEmpty()) return@forEach
+                    anyPoi = true
+                    Text(kind.title, style = MaterialTheme.typography.titleSmall)
+                    list.forEach { t ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text("${t.name} · 캠핑장에서 ${formatDistance(t.distanceM)}", style = MaterialTheme.typography.bodyMedium)
+                                if (t.openHours.isNotBlank()) Text(t.openHours, style = MaterialTheme.typography.bodySmall)
+                            }
+                            OutlinedButton(onClick = { viewModel.addToiletWaypoint(p, t) }) { Text("경유지로") }
+                        }
+                    }
+                }
+                if (anyPoi) Text("출처: © OpenStreetMap (빠진 곳이 있을 수 있어요)", style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
+
+/**
+ * 가는 길 + 오늘 밤 = 내일 아침 잔량.
+ * 도착 시 예상 배터리는 내비(requestTrip)가 경로·교통을 반영해 계산한 값이다.
+ */
+@Composable
+private fun ArrivalPlan(trip: TripEstimate?, tripLoaded: Boolean, forecast: chabaklog.app.tracking.Forecast?) {
+    Text("가는 길과 내일 아침", style = MaterialTheme.typography.titleSmall)
+    when {
+        !tripLoaded -> Text("내비에서 경로 계산 중…", style = MaterialTheme.typography.bodySmall)
+        trip == null -> Text("내비에서 경로 정보를 받지 못했어요", style = MaterialTheme.typography.bodySmall)
+        else -> {
+            val minutes = trip.etaSec / 60
+            val time = if (minutes >= 60) "${minutes / 60}시간 ${minutes % 60}분" else "${minutes}분"
+            Text(
+                "${formatDistance(trip.distanceM)} · 약 $time · 도착 시 배터리 약 ${trip.socAtArrival.roundToInt()}%",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            forecast?.let { f ->
+                val morning = trip.socAtArrival - f.totalSocPercent
+                Text(
+                    "도착 ${trip.socAtArrival.roundToInt()}% − 오늘 밤 ${f.totalSocPercent.roundToInt()}% → 내일 아침 약 ${morning.roundToInt().coerceAtLeast(0)}%",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                if (morning < MORNING_WARN_PERCENT) {
+                    Text(
+                        "아침에 ${MORNING_WARN_PERCENT}%보다 적게 남을 수 있어요. 가는 길에 충전을 생각해 보세요.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+            Text("도착 시 배터리: 차량 내비 경로 계산 값", style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+private const val MORNING_WARN_PERCENT = 20
 
 private fun formatDistance(m: Int) = if (m < 1000) "${m}m" else "%.1fkm".format(m / 1000f)

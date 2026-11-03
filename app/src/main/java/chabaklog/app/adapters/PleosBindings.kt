@@ -8,6 +8,7 @@ import ai.pleos.playground.vehicle.api.model.capability.CapabilityConfig
 import ai.pleos.playground.vehicle.constant.area.DoorValue
 import ai.pleos.playground.vehicle.constant.area.SeatValue
 import ai.pleos.playground.vehicle.listener.DoorPositionListener
+import ai.pleos.playground.vehicle.listener.EvChargePortOpenListener
 import ai.pleos.playground.vehicle.listener.EvBatteryStateOfChargeListener
 import ai.pleos.playground.vehicle.listener.HvacPowerStateListener
 import ai.pleos.playground.vehicle.listener.SeatOccupancyListener
@@ -37,6 +38,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
  * | HVAC_POWER          | HVAC.*HvacPowerState          | capability가 준 묶음 영역 | pleos CAR_CLIMATE                    |
  * | STEERING_ANGLE      | SteeringWheel.*SteeringWheelAngle | 없음                | pleos CAR_DRIVE                      |
  * | OUTSIDE_TEMPERATURE | AAOS ENV_OUTSIDE_TEMPERATURE  | 전역(0)                 | android.car.permission.CAR_EXTERIOR_ENVIRONMENT |
+ * | CHARGING            | EvBattery.getEvChargeSwitchState + isEvChargePortOpen | 없음 | pleos CAR_ENERGY (11/3 SDK 2.3.2 소스로 확인) |
  *
  * 규칙
  * - 지원 확인 실패(예외·onFailed)는 UNSUPPORTED로 단정하지 않고 TEMPORARILY_UNAVAILABLE.
@@ -80,7 +82,7 @@ class PleosBindingFactory(
     private val quirks: VehicleQuirks = VehicleQuirks(),
 ) {
     fun all(): List<PleosSignalBinding> = listOf(
-        gear(), seatOccupancy(), doorOpen(), batterySoc(), hvacPower(), steeringAngle(), outsideTemperature(),
+        gear(), seatOccupancy(), doorOpen(), batterySoc(), hvacPower(), steeringAngle(), outsideTemperature(), charging(),
     )
 
     // ---------- AAOS 표준 속성 ----------
@@ -259,6 +261,50 @@ class PleosBindingFactory(
             }
             hvac.registerHvacPowerState(a, l)
             return Subscription { hvac.unregisterHvacPowerState(a, l) }
+        }
+    }
+
+    /**
+     * 충전 중 = 충전 스위치 켜짐 또는 충전구 열림.
+     * 충전구는 변경 알림이 있지만 충전 스위치는 알림 API가 없어, 트래커가 30초마다 current()로 다시 읽는다.
+     * (isEvChargePortOpen·registerEvChargePortOpen은 SDK에서 "AAOS EV_CHARGE_PORT_OPEN을 쓰라"는 폐기 예정 표시가 있다.
+     *  AAOS 쪽은 별도 권한(CAR_ENERGY_PORTS)이 필요해 지금은 SDK 경로를 쓴다.)
+     */
+    @Suppress("DEPRECATION")
+    private fun charging() = object : PleosSignalBinding {
+        override val signal = VehicleSignal.CHARGING
+        private val battery get() = vehicle.getEvBattery()
+        @Volatile private var lastSwitch: Boolean? = null
+        @Volatile private var lastPort: Boolean? = null
+
+        override suspend fun check(): Availability {
+            val sw = awaitCallback<Availability> { ok, fail -> battery.checkEvChargeSwitchCapabilities({ c -> ok(c.toAvailability()) }, fail) }
+            val port = awaitCallback<Availability> { ok, fail -> battery.checkEvChargePortOpenCapabilities({ c -> ok(c.toAvailability()) }, fail) }
+            val results = listOf(sw.orTemporary(signal), port.orTemporary(signal))
+            return when {
+                Availability.AVAILABLE in results -> Availability.AVAILABLE
+                Availability.TEMPORARILY_UNAVAILABLE in results -> Availability.TEMPORARILY_UNAVAILABLE
+                else -> Availability.UNSUPPORTED
+            }
+        }
+
+        override suspend fun current(): VehicleEvent? {
+            lastSwitch = awaitCallback<Boolean?> { ok, fail -> battery.getEvChargeSwitchState(ok, fail) }.getOrNull()
+            lastPort = awaitCallback<Boolean?> { ok, fail -> battery.isEvChargePortOpen(ok, fail) }.getOrNull()
+            if (lastSwitch == null && lastPort == null) return null
+            return VehicleEvent.ChargingChanged(lastSwitch == true || lastPort == true, now())
+        }
+
+        override fun register(onEvent: (VehicleEvent) -> Unit): Subscription {
+            val l = object : EvChargePortOpenListener {
+                override fun onEvChargePortOpenUpdated(isOpened: Boolean?) {
+                    isOpened?.let { lastPort = it }
+                    onEvent(VehicleEvent.ChargingChanged(lastSwitch == true || lastPort == true, now()))
+                }
+                override fun onFailed(e: Exception) { Log.w(TAG, "충전구 알림 실패: ${e.message}") }
+            }
+            battery.registerEvChargePortOpen(l)
+            return Subscription { battery.unregisterEvChargePortOpen(l) }
         }
     }
 

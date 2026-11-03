@@ -11,6 +11,7 @@ import chabaklog.app.data.NearbyToilet
 import chabaklog.app.data.PlaceEntity
 import chabaklog.app.data.PlaceKind
 import chabaklog.app.data.SessionEntity
+import chabaklog.app.tracking.Appliance
 import chabaklog.app.tracking.Forecast
 import chabaklog.app.tracking.LiveState
 import chabaklog.datasource.location.GeoPoint
@@ -38,6 +39,31 @@ data class PlaceSummary(
     val hasRecords get() = realCount + demoCount > 0
 }
 
+/** 내비 requestTrip 결과: 거리(m), 소요 시간(초), 도착 시 예상 배터리(%), 예상 사용 에너지(Wh) */
+data class TripEstimate(val distanceM: Int, val etaSec: Int, val socAtArrival: Float, val energyWh: Double)
+
+/**
+ * 데이터 출처 화면에서 따로 확인하는 값 (LiveState에 없는 것).
+ * null = 읽을 수 없음. 화면에서 대체값과 함께 보여준다.
+ */
+data class SourceExtras(
+    val batteryKwh: Float? = null,
+    val odometerKm: Float? = null,
+    /** true 연결됨, false 연결 안 됨, null 확인 중 */
+    val naviConnected: Boolean? = null,
+    /** 날씨 예보(Open-Meteo)에 닿는지. null 확인 중 */
+    val internet: Boolean? = null,
+    /** 예측에 쓸 수 있는 내 차박 기록 수 (시연용 제외, 1시간 이상, 배터리·기온 있음) */
+    val usableNights: Int = 0,
+    val campsites: Int = 0,
+    val toilets: Int = 0,
+    val convenience: Int = 0,
+    val supermarkets: Int = 0,
+    val chargers: Int = 0,
+    val climateStations: Int = 0,
+    val checked: Boolean = false,
+)
+
 enum class MapFilter(val label: String) { PUBLIC("공공 캠핑장"), MINE("내 차박지"), RECORDED("기록 있는 곳만") }
 
 class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
@@ -45,6 +71,7 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
 
     val live: StateFlow<LiveState> = app.tracker.state
     val demoMode: StateFlow<Boolean> = app.demoMode
+    val v2l: StateFlow<Set<Appliance>> = app.v2l
     val outline get() = app.outline.rings
 
     val sessions: StateFlow<List<SessionEntity>> =
@@ -56,7 +83,8 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
         combine(db.places().observeAll(), db.sessions().observeAll()) { places, sessions ->
             val byPlace = sessions.groupBy { it.placeId }
             places.map { p ->
-                val list = byPlace[p.id].orEmpty()
+                // 지도에는 차박으로 확정된 기록만 센다 (휴식·확인 전·진행 중 제외)
+                val list = byPlace[p.id].orEmpty().filter { it.isCamping }
                 val real = list.filter { !it.isDemo }
                 val used = real.mapNotNull { s -> if (s.socStart != null && s.socEnd != null) s.socStart - s.socEnd else null }
                 PlaceSummary(
@@ -67,12 +95,17 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
                     avgSocUsed = if (used.isEmpty()) null else used.average().toFloat(),
                 )
             }
+                // 휴식으로 끝난 곳에 만들어진 "내 차박지"는 지도에 띄우지 않는다
+                .filter { it.place.kind != PlaceKind.MINE || it.hasRecords }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ---------- 지도 ----------
     val filters = MutableStateFlow(setOf(MapFilter.PUBLIC, MapFilter.MINE))
     val selected = MutableStateFlow<PlaceSummary?>(null)
     val selectedForecast = MutableStateFlow<Forecast?>(null)
+    /** 고른 장소까지의 경로 정보. null = 계산 중 또는 받지 못함 (tripLoaded로 구분) */
+    val selectedTrip = MutableStateFlow<TripEstimate?>(null)
+    val tripLoaded = MutableStateFlow(false)
     val vehiclePoint = MutableStateFlow<GeoPoint?>(null)
     val message = MutableStateFlow<String?>(null)
 
@@ -81,9 +114,22 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
     fun select(summary: PlaceSummary?) {
         selected.value = summary
         selectedForecast.value = null
+        selectedTrip.value = null
+        tripLoaded.value = false
         summary ?: return
         viewModelScope.launch {
             selectedForecast.value = app.forecaster.forPlace(GeoPoint(summary.place.latitude, summary.place.longitude))
+        }
+        viewModelScope.launch {
+            val p = summary.place
+            val trip = app.navi.trip(NaviPlace(p.name, p.latitude, p.longitude, p.address ?: ""))
+            // 다른 장소를 그 사이 골랐으면 버린다
+            if (selected.value?.place?.id == p.id) {
+                selectedTrip.value = trip?.let {
+                    TripEstimate(it.distance, it.eta, it.estimatedSocAtDest.toFloat(), it.energyConsumption)
+                }
+                tripLoaded.value = true
+            }
         }
     }
 
@@ -95,6 +141,10 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
     /** 공공 캠핑장일 때만 근처 화장실 후보가 있다 */
     fun toiletsNear(p: PlaceEntity): List<NearbyToilet> =
         if (p.kind == PlaceKind.PUBLIC_CAMPSITE) app.toilets.near(p.name) else emptyList()
+
+    /** 공공 캠핑장 근처 편의점·마트·충전소 (OpenStreetMap 내장) */
+    fun poisNear(p: PlaceEntity, kind: chabaklog.app.data.PoiKind): List<NearbyToilet> =
+        if (p.kind == PlaceKind.PUBLIC_CAMPSITE) app.pois.near(p.name, kind) else emptyList()
 
     /**
      * 화장실을 경유지로 넣는다. 경유지는 경로가 있어야 붙으므로, 내비 목적지가 이 캠핑장이 아니면 먼저 목적지로 보낸다.
@@ -185,6 +235,17 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
     // ---------- 홈: 오늘 밤 예상 ----------
     val homeForecast = MutableStateFlow<Forecast?>(null)
 
+    /** V2L 가전을 고르거나 빼면 홈·장소 카드 예측을 바로 다시 계산한다 */
+    fun toggleAppliance(a: Appliance) {
+        app.toggleAppliance(a)
+        viewModelScope.launch {
+            vehiclePoint.value?.let { homeForecast.value = app.forecaster.forPlace(it, vehicleTempC = live.value.outsideTempC) }
+            selected.value?.let { s ->
+                selectedForecast.value = app.forecaster.forPlace(GeoPoint(s.place.latitude, s.place.longitude))
+            }
+        }
+    }
+
     init {
         viewModelScope.launch {
             // 앱이 막 켜졌을 때는 차량 외기온이 아직 없다. 잠시 기다렸다가 계산해야 홈(지금 차 위치)에 센서 값을 쓴다.
@@ -211,9 +272,41 @@ class MainViewModel(private val app: ChabaklogApp) : ViewModel() {
     }
 
     fun setDemoMode(on: Boolean) = app.setDemoMode(on)
-    fun manualStart() = app.tracker.manualStart()
-    fun manualEnd() = app.tracker.manualEnd()
-    fun refreshSources() = app.tracker.refreshSourcesAsync()
+    /** 홈의 차박 모드 스위치 */
+    fun setCampMode(on: Boolean) = if (on) app.tracker.campModeOn() else app.tracker.campModeOff()
+
+    /** 아침 요약의 "어젯밤 차박이었나요?" 답 */
+    fun answerVerdict(sessionId: Long, wasCamping: Boolean) = viewModelScope.launch {
+        db.sessions().setVerdict(sessionId, if (wasCamping) "CAMPING" else "REST")
+        message.value = if (wasCamping) "차박으로 기록했어요" else "휴식으로 바꿨어요. 예측에는 쓰지 않아요"
+    }
+    val sourceExtras = MutableStateFlow(SourceExtras())
+
+    /** 데이터 출처 화면: 위치·감지 경로를 다시 고르고, 차량·내비·인터넷·내장 데이터를 다시 확인한다 */
+    fun refreshSources() {
+        app.tracker.refreshSourcesAsync()
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val usable = db.sessions().realFinished().count {
+                val end = it.endedAtMs
+                end != null && it.socStart != null && it.socEnd != null && it.outsideTempC != null &&
+                    end - it.startedAtMs >= 3_600_000L
+            }
+            sourceExtras.value = SourceExtras(
+                batteryKwh = app.vehicle.batteryCapacityKwh(),
+                odometerKm = app.vehicle.odometerKm(),
+                naviConnected = app.navi.isConnected,
+                internet = runCatching { app.weather.isReachable() }.getOrDefault(false),
+                usableNights = usable,
+                campsites = runCatching { chabaklog.app.data.loadPublicCampsites(app).size }.getOrDefault(0),
+                toilets = app.toilets.count,
+                convenience = app.pois.count(chabaklog.app.data.PoiKind.CONVENIENCE),
+                supermarkets = app.pois.count(chabaklog.app.data.PoiKind.SUPERMARKET),
+                chargers = app.pois.count(chabaklog.app.data.PoiKind.CHARGING),
+                climateStations = app.climate.stationCount,
+                checked = true,
+            )
+        }
+    }
 
     companion object {
         fun factory(app: ChabaklogApp): ViewModelProvider.Factory = viewModelFactory {

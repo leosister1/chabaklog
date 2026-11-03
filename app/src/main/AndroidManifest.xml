@@ -13,6 +13,8 @@
     <!-- AAOS 표준 속성: 기어, 외기 온도 -->
     <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
     <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT" />
+    <!-- AAOS 표준 속성: 배터리 용량(INFO_EV_BATTERY_CAPACITY) — 기록이 없을 때 기본 예측을 내 차 용량에 맞추고 V2L을 %로 바꾸는 데 씀 -->
+    <uses-permission android:name="android.car.permission.CAR_INFO" />
     <!-- NaviHelper 3.0.5 소스 기준: NAVI_ROUTE = 현재 위치·목적지·경유지 조회, NAVI_ROUTE_SEARCH = 경로 요청·경유지 추가 -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />

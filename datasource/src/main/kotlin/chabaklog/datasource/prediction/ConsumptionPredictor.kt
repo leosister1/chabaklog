@@ -29,6 +29,8 @@ data class Prediction(
     val basis: PredictionBasis,
     /** 근거가 된 내 기록 수 */
     val sampleCount: Int,
+    /** 기본값을 내 차 배터리 용량에 맞춰 보정했으면 그 용량(kWh) */
+    val batteryKwhAdjusted: Float? = null,
 )
 
 /**
@@ -37,6 +39,10 @@ data class Prediction(
  * 모델: 시간당 소모율 = 기본 소모 + 기울기 × max(0, 쾌적온도 − 외기온)
  *  - 외기온이 낮을수록 난방(공조)에 쓰는 전력이 늘어난다는 가정 하나만 둔다.
  *  - 기본 곡선의 숫자는 추정값이다. 그래서 화면에 "기본값"임을 표시하고, 내 기록이 생기면 바로 내 기록 쪽으로 바꾼다.
+ *
+ * 배터리 용량 보정: 기본 곡선은 [Config.referenceBatteryKwh] 배터리 기준 %다. 내 차 용량을 알면
+ * 같은 전력(kWh)이 내 배터리에서 몇 %인지로 바꾼다 (용량이 작을수록 % 소모가 크다).
+ * 내 기록이 있으면 이미 내 차의 %라 보정하지 않는다.
  *
  * 내 기록 활용
  *  1) 기온 폭이 충분한 기록이 [minFitRecords]개 이상 → 최소제곱으로 기본 소모·기울기를 직접 맞춘다.
@@ -51,9 +57,12 @@ class ConsumptionPredictor(private val config: Config = Config()) {
         val minFitRecords: Int = 3,
         val minFitTempSpreadC: Float = 3f,
         val minRecordHours: Float = 1f,
+        /** 기본 곡선이 가정한 배터리 용량 (아이오닉 5 롱레인지급 약 77 kWh) */
+        val referenceBatteryKwh: Float = 77.4f,
     )
 
-    fun predict(history: List<NightRecord>, tonightTempC: Float, hours: Float = 10f): Prediction {
+    fun predict(history: List<NightRecord>, tonightTempC: Float, hours: Float = 10f, batteryKwh: Float? = null): Prediction {
+        val capacity = batteryKwh?.takeIf { it in 10f..250f }
         val usable = history.filter {
             it.durationHours >= config.minRecordHours && it.socUsedPercent >= 0f && it.outsideTempC != null
         }
@@ -65,7 +74,10 @@ class ConsumptionPredictor(private val config: Config = Config()) {
                 val factor = usable.map { observedRate(it) / defaultRate(it.outsideTempC!!) }.average().toFloat()
                 (defaultRate(tonightTempC) * factor.coerceIn(0.3f, 3f)) to PredictionBasis.MY_RECORDS_SCALED
             }
-            else -> defaultRate(tonightTempC) to PredictionBasis.DEFAULT
+            else -> {
+                val scale = capacity?.let { config.referenceBatteryKwh / it } ?: 1f
+                (defaultRate(tonightTempC) * scale) to PredictionBasis.DEFAULT
+            }
         }
         val safeRate = max(0f, rate)
         return Prediction(
@@ -75,6 +87,7 @@ class ConsumptionPredictor(private val config: Config = Config()) {
             hours = hours,
             basis = basis,
             sampleCount = if (basis == PredictionBasis.DEFAULT) 0 else usable.size,
+            batteryKwhAdjusted = if (basis == PredictionBasis.DEFAULT) capacity else null,
         )
     }
 
